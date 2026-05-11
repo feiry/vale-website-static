@@ -76,6 +76,13 @@ for f in "${HTML_FILES[@]}"; do
   "${SED_INPLACE[@]}" -E 's|<source[^>]*adaptive-media[^>]*/?>||g' "$f"
 done
 
+# 6b. Remove loading="lazy" from hero/above-the-fold images
+#     Lazy loading on hero images prevents them from loading in static context
+echo ">>> Removing loading=lazy from all images (static site doesn't need it)..."
+for f in "${HTML_FILES[@]}"; do
+  "${SED_INPLACE[@]}" -E 's| loading="lazy"||g' "$f"
+done
+
 # 7. Fix submenu images that got incorrectly rewritten to "indonesia.html"
 echo ">>> Fixing broken submenu image references..."
 for f in "${HTML_FILES[@]}"; do
@@ -103,7 +110,19 @@ for f in "${HTML_FILES[@]}"; do
   "${SED_INPLACE[@]}" -E 's|(url\()(\.\./)*o/|\1/o/|g' "$f"
 done
 
-# 9. Append .html to internal /indonesia/ links that lack a file extension
+# 9. Fix query params in /documents/ URLs to match wget's filename mangling
+#    wget --restrict-file-names=windows converts ? to @, so URLs with ?version=
+#    need to use @version= to match the files on disk
+echo ">>> Fixing document URL query params to match wget filenames..."
+for f in "${HTML_FILES[@]}"; do
+  # In src/href attributes pointing to /documents/, replace ? with @
+  "${SED_INPLACE[@]}" -E 's|(src="/documents/[^"]*)\?|\1@|g' "$f"
+  "${SED_INPLACE[@]}" -E 's|(href="/documents/[^"]*)\?|\1@|g' "$f"
+  # Also fix srcset attributes
+  "${SED_INPLACE[@]}" -E 's|(srcset="/documents/[^"]*)\?|\1@|g' "$f"
+done
+
+# 10. Append .html to internal /indonesia/ links that lack a file extension
 #    e.g. href="/indonesia/board-of-directors" → href="/indonesia/board-of-directors.html"
 #    Skip links that already have .html, have a hash, query param, or end with /
 echo ">>> Appending .html to extensionless internal links..."
