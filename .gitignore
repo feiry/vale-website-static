@@ -1,0 +1,9 @@
+site/
+node_modules/
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+*.tfvars
+!example.tfvars
+MIGRATION_NOTES.md

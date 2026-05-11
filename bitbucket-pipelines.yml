@@ -1,0 +1,44 @@
+image: node:20-slim
+
+definitions:
+  steps:
+    - step: &crawl-build-deploy
+        name: Crawl, build, deploy
+        size: 2x
+        caches:
+          - node
+        script:
+          # Install system dependencies
+          - apt-get update && apt-get install -y wget python3 awscli --no-install-recommends
+          # Crawl
+          - chmod +x crawl.sh postprocess.sh search/inject-pagefind.sh
+          - ./crawl.sh
+          # Post-process
+          - ./postprocess.sh
+          # Build search index + inject into pages
+          - ./search/inject-pagefind.sh
+          # Deploy to S3
+          - aws s3 sync ./site/vale.com s3://$BUCKET --delete --cache-control "public, max-age=300"
+          # Invalidate CloudFront cache
+          - aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
+        artifacts:
+          - MIGRATION_NOTES.md
+
+pipelines:
+  custom:
+    full-rebuild:
+      - step: *crawl-build-deploy
+
+  branches:
+    main:
+      - step: *crawl-build-deploy
+
+# Sunday 19:00 UTC = Monday 02:00 WIB (Asia/Jakarta)
+schedules:
+  - cron: "0 19 * * 0"
+    target:
+      ref_name: main
+      ref_type: branch
+      selector:
+        type: custom
+        pattern: full-rebuild
