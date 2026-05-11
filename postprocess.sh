@@ -40,6 +40,13 @@ for f in "${HTML_FILES[@]}"; do
   "${SED_INPLACE[@]}" -E 's|https?://www\.vale\.com/|/|g' "$f"
 done
 
+# 2b. Strip language prefix from /en/indonesia/ links (mirror is single-language)
+echo ">>> Stripping language prefix from internal links..."
+for f in "${HTML_FILES[@]}"; do
+  "${SED_INPLACE[@]}" -E 's|"/[a-z]{2}/indonesia/|"/indonesia/|g' "$f"
+  "${SED_INPLACE[@]}" -E "s|'/[a-z]{2}/indonesia/|'/indonesia/|g" "$f"
+done
+
 # 3. Remove Google Tag Manager noscript iframe
 echo ">>> Removing GTM noscript iframe..."
 for f in "${HTML_FILES[@]}"; do
@@ -94,6 +101,16 @@ for f in "${HTML_FILES[@]}"; do
   # url(...) in inline styles
   "${SED_INPLACE[@]}" -E 's|(url\()(\.\./)*documents/|\1/documents/|g' "$f"
   "${SED_INPLACE[@]}" -E 's|(url\()(\.\./)*o/|\1/o/|g' "$f"
+done
+
+# 9. Append .html to internal /indonesia/ links that lack a file extension
+#    e.g. href="/indonesia/board-of-directors" → href="/indonesia/board-of-directors.html"
+#    Skip links that already have .html, have a hash, query param, or end with /
+echo ">>> Appending .html to extensionless internal links..."
+for f in "${HTML_FILES[@]}"; do
+  "${SED_INPLACE[@]}" -E 's|href="/indonesia/([a-zA-Z0-9_-]+)"([^.])|href="/indonesia/\1.html"\2|g' "$f"
+  # Handle end-of-line case
+  "${SED_INPLACE[@]}" -E 's|href="/indonesia/([a-zA-Z0-9_-]+)"$|href="/indonesia/\1.html"|g' "$f"
 done
 
 # 7. Fix directory index: indonesia.html → indonesia/index.html
