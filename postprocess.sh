@@ -122,6 +122,47 @@ for f in "${HTML_FILES[@]}"; do
   "${SED_INPLACE[@]}" -E 's|(srcset="/documents/[^"]*)\?|\1@|g' "$f"
 done
 
+# 9b. Collapse UUID filenames: documents/.../image.png/UUID@version=X → documents/.../image.png
+#     S3/CloudFront can't handle @, =, & in key names via HTTP URLs
+echo ">>> Collapsing UUID document filenames..."
+# First collapse files on disk
+find "$SITE_DIR/documents" -type f -path '*@version*' -print0 2>/dev/null | while IFS= read -r -d '' filepath; do
+  parent_dir=$(dirname "$filepath")
+  grandparent=$(dirname "$parent_dir")
+  parent_name=$(basename "$parent_dir")
+  # parent_name is like "image.png" — move the file up as that name
+  newpath="$grandparent/$parent_name"
+  if [[ "$filepath" != "$newpath" ]]; then
+    # Move file to temp location, remove the directory, then rename
+    tmppath="$grandparent/.tmp_collapse_$$"
+    mv -- "$filepath" "$tmppath" 2>/dev/null || continue
+    rm -rf -- "$parent_dir" 2>/dev/null || true
+    mv -- "$tmppath" "$newpath" 2>/dev/null || true
+  fi
+done
+# Also handle &t= files without @version
+find "$SITE_DIR/documents" -type f -name '*&t=*' -print0 2>/dev/null | while IFS= read -r -d '' filepath; do
+  newpath=$(echo "$filepath" | sed -E 's/&t=[0-9]+//')
+  if [[ "$filepath" != "$newpath" ]]; then
+    mkdir -p "$(dirname "$newpath")"
+    mv "$filepath" "$newpath" || true
+  fi
+done
+# Now fix HTML references: strip /UUID@version=X(&t=...) from document URLs
+for f in "${HTML_FILES[@]}"; do
+  # src="/documents/.../image.png/UUID@version=X&amp;t=..." → src="/documents/.../image.png"
+  perl -pi -e 's{(src="/documents/[^"]+\.(?:png|jpg|jpeg|gif|svg|webp|pdf))/[^"]*"}{$1"}gi' "$f"
+  perl -pi -e 's{(href="/documents/[^"]+\.(?:png|jpg|jpeg|gif|svg|webp|pdf))/[^"]*"}{$1"}gi' "$f"
+done
+
+# 9c. Convert %20 to + in document/asset URLs to match wget's filename encoding
+#     wget saves spaces as + in filenames, but HTML uses %20
+echo ">>> Converting %20 to + in document URLs..."
+for f in "${HTML_FILES[@]}"; do
+  # Use perl to replace %20 with + only inside src/href attributes pointing to /documents/
+  perl -pi -e 's{((?:src|href|srcset)="/documents/)([^"]*)"}{my $p=$1; my $v=$2; $v=~s/%20/+/g; "$p$v\""}ge' "$f"
+done
+
 # 10. Append .html to internal /indonesia/ links that lack a file extension
 #    e.g. href="/indonesia/board-of-directors" → href="/indonesia/board-of-directors.html"
 #    Skip links that already have .html, have a hash, query param, or end with /

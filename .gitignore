@@ -1,4 +1,5 @@
 site/
+site-backup/
 node_modules/
 .terraform/
 *.tfstate
