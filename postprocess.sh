@@ -132,14 +132,32 @@ for f in "${HTML_FILES[@]}"; do
   "${SED_INPLACE[@]}" -E 's|href="/indonesia/([a-zA-Z0-9_-]+)"$|href="/indonesia/\1.html"|g' "$f"
 done
 
-# 7. Fix directory index: indonesia.html → indonesia/index.html
-echo ">>> Fixing directory index files..."
-if [[ -f "$SITE_DIR/indonesia.html" && -d "$SITE_DIR/indonesia" ]]; then
-  cp "$SITE_DIR/indonesia.html" "$SITE_DIR/indonesia/index.html"
-  echo "    Copied indonesia.html → indonesia/index.html"
+# 11. Flatten: move indonesia/* to root, rewrite /indonesia/ paths to /
+echo ">>> Flattening indonesia/ to site root..."
+# Copy indonesia subpages to root
+if [[ -d "$SITE_DIR/indonesia" ]]; then
+  cp -a "$SITE_DIR/indonesia/"* "$SITE_DIR/" 2>/dev/null || true
+fi
+# Copy indonesia.html as index.html (landing page)
+if [[ -f "$SITE_DIR/indonesia.html" ]]; then
+  cp "$SITE_DIR/indonesia.html" "$SITE_DIR/index.html"
 fi
 
-# 7. Create 404 page
+# Re-find HTML files after flatten (new files at root)
+HTML_FILES=()
+while IFS= read -r -d '' f; do
+  HTML_FILES+=("$f")
+done < <(find "$SITE_DIR" -name '*.html' -print0)
+
+# Rewrite /indonesia/ links to / in all HTML
+echo ">>> Rewriting /indonesia/ paths to /..."
+for f in "${HTML_FILES[@]}"; do
+  "${SED_INPLACE[@]}" -E 's|href="/indonesia/|href="/|g' "$f"
+  "${SED_INPLACE[@]}" -E 's|href="/indonesia\.html"|href="/"|g' "$f"
+  "${SED_INPLACE[@]}" -E 's|action="/indonesia/|action="/|g' "$f"
+done
+
+# 12. Create 404 page
 echo ">>> Creating 404 page..."
 cat > "$SITE_DIR/404.html" << 'EOF404'
 <!DOCTYPE html>
@@ -161,7 +179,7 @@ cat > "$SITE_DIR/404.html" << 'EOF404'
   <div class="container">
     <h1>404</h1>
     <p>The page you're looking for doesn't exist.</p>
-    <p><a href="/indonesia/">Back to PT Vale Indonesia</a></p>
+    <p><a href="/">Back to PT Vale Indonesia</a></p>
   </div>
 </body>
 </html>

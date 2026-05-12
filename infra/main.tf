@@ -12,7 +12,7 @@ terraform {
   # backend "s3" {
   #   bucket         = "your-terraform-state-bucket"
   #   key            = "vale-indonesia-static/terraform.tfstate"
-  #   region         = "ap-southeast-1"
+  #   region         = "ap-southeast-3"
   #   dynamodb_table = "terraform-locks"
   #   encrypt        = true
   # }
@@ -22,16 +22,10 @@ provider "aws" {
   region = var.aws_region
 }
 
-# CloudFront requires ACM certs in us-east-1
-provider "aws" {
-  alias  = "us_east_1"
-  region = "us-east-1"
-}
-
 # ---------- S3 Bucket ----------
 
 resource "aws_s3_bucket" "site" {
-  bucket = "vale-indonesia-static-${var.aws_region}"
+  bucket = "vale-indonesia-static"
   tags   = var.tags
 }
 
@@ -69,49 +63,12 @@ resource "aws_cloudfront_origin_access_control" "site" {
   signing_protocol                  = "sigv4"
 }
 
-# ---------- ACM Certificate (us-east-1) ----------
-
-resource "aws_acm_certificate" "site" {
-  provider          = aws.us_east_1
-  domain_name       = var.domain_name
-  validation_method = "DNS"
-  tags              = var.tags
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-resource "aws_route53_record" "cert_validation" {
-  for_each = {
-    for dvo in aws_acm_certificate.site.domain_validation_options : dvo.domain_name => {
-      name   = dvo.resource_record_name
-      record = dvo.resource_record_value
-      type   = dvo.resource_record_type
-    }
-  }
-
-  allow_overwrite = true
-  name            = each.value.name
-  records         = [each.value.record]
-  ttl             = 60
-  type            = each.value.type
-  zone_id         = var.hosted_zone_id
-}
-
-resource "aws_acm_certificate_validation" "site" {
-  provider                = aws.us_east_1
-  certificate_arn         = aws_acm_certificate.site.arn
-  validation_record_fqdns = [for record in aws_route53_record.cert_validation : record.fqdn]
-}
-
 # ---------- CloudFront Distribution ----------
 
 resource "aws_cloudfront_distribution" "site" {
   enabled             = true
   is_ipv6_enabled     = true
   default_root_object = "index.html"
-  aliases             = [var.domain_name]
   price_class         = "PriceClass_200"
   http_version        = "http2and3"
   comment             = "Vale Indonesia static mirror"
@@ -158,9 +115,7 @@ resource "aws_cloudfront_distribution" "site" {
   }
 
   viewer_certificate {
-    acm_certificate_arn      = aws_acm_certificate_validation.site.certificate_arn
-    ssl_support_method       = "sni-only"
-    minimum_protocol_version = "TLSv1.2_2021"
+    cloudfront_default_certificate = true
   }
 
   restrictions {
@@ -191,18 +146,4 @@ resource "aws_s3_bucket_policy" "site" {
       }
     ]
   })
-}
-
-# ---------- Route53 ----------
-
-resource "aws_route53_record" "site" {
-  zone_id = var.hosted_zone_id
-  name    = var.domain_name
-  type    = "A"
-
-  alias {
-    name                   = aws_cloudfront_distribution.site.domain_name
-    zone_id                = aws_cloudfront_distribution.site.hosted_zone_id
-    evaluate_target_health = false
-  }
 }
