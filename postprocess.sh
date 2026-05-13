@@ -83,6 +83,29 @@ for f in "${HTML_FILES[@]}"; do
   "${SED_INPLACE[@]}" -E 's| loading="lazy"||g' "$f"
 done
 
+# 6c. Fix zero-width images left after adaptive-media source removal
+#     Liferay sets <img class="w-0"> as fallback; without <source> tags it needs to be visible
+echo ">>> Fixing zero-width fallback images..."
+for f in "${HTML_FILES[@]}"; do
+  "${SED_INPLACE[@]}" -E 's|class="w-0"|class="w-100"|g' "$f"
+done
+
+# 6d. Style "Learn more" modal buttons and inject static site CSS fixes
+echo ">>> Injecting static site CSS fixes..."
+STATIC_CSS='<style>.vale-fragmento-link-para-modal>button.btn-unstyled{background-color:var(--amarelo-vale,#D4A843);color:#fff;padding:.75rem 2rem;border-radius:0;text-align:center;display:inline-flex!important;width:auto!important;cursor:pointer;border:none;margin-top:1rem}.vale-fragmento-link-para-modal>button.btn-unstyled:hover{opacity:.85}.vale-fragmento-link-para-modal>button.btn-unstyled p{margin:0;color:#fff;font-weight:600}</style>'
+for f in "${HTML_FILES[@]}"; do
+  "${SED_INPLACE[@]}" "s|</head>|${STATIC_CSS}</head>|" "$f"
+done
+
+# 6e. Inject Liferay event system polyfill and Analytics stub
+#     The static mirror is missing AUI JS modules that provide Liferay.fire/on/detach.
+#     Without these, the burger menu and other event-driven UI breaks.
+#     Also stub Analytics.track() to prevent ReferenceErrors in tracking code.
+echo ">>> Injecting Liferay event polyfill and Analytics stub..."
+for f in "${HTML_FILES[@]}"; do
+  perl -pi -e 's{</head>}{<script>!function(){if(!window.Liferay)return;var e={};Liferay.on=function(t,c){e[t]||(e[t]=[]);e[t].push(c)};Liferay.fire=function(t,d){(e[t]||[]).forEach(function(c){c(d||{})})};Liferay.detach=function(t,c){if(e[t]){if(c){e[t]=e[t].filter(function(f){return f!==c})}else{e[t]=[]}}};Liferay.publish=function(){};window.Analytics=window.Analytics||{track:function(){},send:function(){}}}();</script></head>}' "$f"
+done
+
 # 7. Fix submenu images that got incorrectly rewritten to "indonesia.html"
 echo ">>> Fixing broken submenu image references..."
 for f in "${HTML_FILES[@]}"; do
