@@ -221,6 +221,14 @@ for f in "${HTML_FILES[@]}"; do
   "${SED_INPLACE[@]}" -E 's|action="/indonesia/|action="/|g' "$f"
 done
 
+# 11b. Append .html to root-level extensionless links (e.g. href="/our-history-in-indonesia")
+#      Step 10 only caught /indonesia/ prefixed links; some were already root-relative
+echo ">>> Appending .html to root-level extensionless links..."
+for f in "${HTML_FILES[@]}"; do
+  "${SED_INPLACE[@]}" -E 's|href="/([a-zA-Z0-9_-]+)"([^.])|href="/\1.html"\2|g' "$f"
+  "${SED_INPLACE[@]}" -E 's|href="/([a-zA-Z0-9_-]+)"$|href="/\1.html"|g' "$f"
+done
+
 # 12. Create 404 page
 echo ">>> Creating 404 page..."
 cat > "$SITE_DIR/404.html" << 'EOF404'

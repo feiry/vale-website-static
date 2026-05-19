@@ -22,6 +22,26 @@ aws s3 sync "$SITE_DIR" "s3://$BUCKET" \
   --cache-control "public, max-age=300" \
   --no-progress
 
+# Step 1b: Fix MIME types for CSS/JS files misdetected by S3
+#   Filenames with @ or _ prefixes confuse S3's auto-detection (e.g. text/x-asm)
+echo ">>> Fixing MIME types for CSS/JS files..."
+find "$SITE_DIR" -name '*.css' -o -name '*.js' | while read -r filepath; do
+  key="${filepath#$SITE_DIR/}"
+  case "$filepath" in
+    *.css) correct_mime="text/css" ;;
+    *.js)  correct_mime="application/javascript" ;;
+  esac
+  current_mime=$(aws s3api head-object --bucket "$BUCKET" --key "$key" --query 'ContentType' --output text 2>/dev/null || echo "")
+  if [[ "$current_mime" != "$correct_mime" ]]; then
+    echo "  Fix: $key ($current_mime → $correct_mime)"
+    aws s3 cp "s3://$BUCKET/$key" "s3://$BUCKET/$key" \
+      --content-type "$correct_mime" \
+      --cache-control "public, max-age=300" \
+      --metadata-directive REPLACE \
+      --no-progress 2>/dev/null || echo "  WARN: failed to fix $key"
+  fi
+done
+
 # Step 2: Fix MIME types for extensionless files in documents/d/
 #   Only needed on first deploy or when documents/d/ content changes.
 #   Pass --fix-mime to run this step, otherwise skip.
