@@ -1,0 +1,16 @@
+{
+  "slug": "your-article-slug-here",
+  "date": "2026-01-01",
+  "categories": ["Indonesia", "Indonesia news"],
+  "cover": "",
+  "en": {
+    "title": "Your English Title Here",
+    "subtitle": "A brief English subtitle or summary sentence.",
+    "body": "<p>Full article HTML body in English goes here.</p>"
+  },
+  "id": {
+    "title": "Judul Bahasa Indonesia Anda di Sini",
+    "subtitle": "Kalimat ringkasan atau subjudul singkat dalam bahasa Indonesia.",
+    "body": "<p>Isi artikel HTML lengkap dalam bahasa Indonesia ada di sini.</p>"
+  }
+}
