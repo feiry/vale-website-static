@@ -84,6 +84,31 @@ def _same_image_bytes(a, b):
     db = _md5_of(b)
     return da is not None and da == db
 
+def _local_exists(src):
+    """True if a /documents/... src resolves to a file present in the mirror."""
+    if not src or not src.startswith("/documents/"):
+        return False
+    rel = _unquote(src.split("?", 1)[0]).lstrip("/")
+    return os.path.exists(os.path.join(SITE_ROOT, rel))
+
+def _first_body_image(rec):
+    """First body image (any language) that is actually present on disk, or None.
+    Used as a fallback card cover for articles with no dedicated cover image."""
+    for lang in ("id", "en"):
+        block = rec.get(lang) or {}
+        for m in re.findall(r'<img[^>]+src="([^"]+)"', block.get("body", "") or ""):
+            if m.startswith("/documents/") and _local_exists(m):
+                return m
+    return None
+
+def _card_cover(rec):
+    """Effective cover for a listing card: the record's own cover, else the first
+    on-disk body image, else '' (caller renders a colored placeholder)."""
+    cover = (rec.get("cover") or "").strip()
+    if cover:
+        return cover
+    return _first_body_image(rec) or ""
+
 # ─── Slug sanitization ────────────────────────────────────────────────────────
 
 def sanitize_slug(slug):
@@ -340,7 +365,7 @@ def build_listing_page(records, lang, all_categories, dry_run=False):
         subtitle_raw = lang_block.get("subtitle", "")
         # truncate subtitle for card
         subtitle = html_mod.escape(subtitle_raw[:160] + ("…" if len(subtitle_raw) > 160 else ""))
-        cover = rec.get("cover", "")
+        cover = _card_cover(rec)
         cats = rec.get("categories", [])
         cats_attr = html_mod.escape("|".join(cats))
         article_url = f"{article_url_prefix}{slug}.html"
