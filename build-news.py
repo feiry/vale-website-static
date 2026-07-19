@@ -48,6 +48,22 @@ ID_LISTING_PATH = os.path.join(SITE_ROOT, "in", "indonesia", "all-news.html")
 EN_ARTICLE_DIR = os.path.join(SITE_ROOT, "indonesia", "w")
 ID_ARTICLE_DIR = os.path.join(SITE_ROOT, "in", "indonesia", "w")
 
+# Homepage files whose dynamic "latest news" carousel we pre-render statically
+EN_HOME_PATH = os.path.join(SITE_ROOT, "indonesia.html")
+ID_HOME_PATH = os.path.join(SITE_ROOT, "in", "indonesia.html")
+HOME_HIGHLIGHT_COUNT = 6
+# Categories marking an article as genuinely Indonesia-LOCAL news (preferred on the
+# homepage). Note: the broad "Indonesia" region tag is also applied to global corporate
+# news (blanket-tagged to every country), so it is deliberately excluded here — only the
+# local "Indonesia news"/"Indonesia ESG" tags reliably indicate local content.
+INDONESIA_CATS = {"Indonesia news", "Indonesia ESG"}
+# Markers delimiting the empty carousel wrapper we inject slides into
+HOME_WRAPPER_OPEN = '<div class="swiper-carrosel'
+HOME_WRAPPER_INNER_OPEN = '<div class="swiper-wrapper">'
+# Sentinel comment so re-runs replace our injected block instead of stacking
+HOME_INJECT_START = "<!-- static-news-highlight:start -->"
+HOME_INJECT_END = "<!-- static-news-highlight:end -->"
+
 # Marker strings used to split chrome source into header + footer
 MAIN_CONTENT_MARKER = '<div class="layout-content portlet-layout"id="main-content"'
 FOOTER_MARKER = '<div class="lfr-layout-structure-item-footer--copiar-'
@@ -617,6 +633,92 @@ def scan_broken_w_links(generated_files, site_root, known_slugs):
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
+def _home_slide_html(rec, lang):
+    """One <div class="swiper-slide"> using the site's own card markup
+    (vale-modelo-card-com-mais), pointing at our static article page."""
+    block = rec.get(lang) or {}
+    title = html_mod.escape(block.get("title", ""))
+    subtitle_raw = block.get("subtitle", "") or ""
+    subtitle = html_mod.escape(subtitle_raw[:130] + ("…" if len(subtitle_raw) > 130 else ""))
+    slug = rec["slug"]
+    if lang == "en":
+        url = f"/indonesia/w/{slug}.html"
+    else:
+        url = f"/in/indonesia/w/{slug}.html"
+    img = _card_cover(rec)  # cover, else first body image, else '' (reuse listing logic)
+    if img:
+        img_html = (f'<img width="300" height="300" class="card-img d-block" '
+                    f'src="{html_mod.escape(img)}" alt="{title}" loading="lazy">')
+    else:
+        img_html = '<div class="card-img d-block news-card-cover-placeholder" style="height:300px"></div>'
+    return (
+        '<div class="swiper-slide">'
+        f'<a class="vale-modelo-card-com-mais" href="{url}">'
+        f'<div class="overflow-hidden">{img_html}</div>'
+        '<div class="card-text px-4 pt-5 bg-white bg-white">'
+        f'<p class="h4 text-verde-vale mb-3">{title}</p>'
+        f'<p class="text-cinza-escuro">{subtitle}</p>'
+        '<span class="card-link position-absolute">&nbsp;</span>'
+        '</div>'
+        '<svg class="card-cut mw-100 w-100 h-auto" xmlns="http://www.w3.org/2000/svg" '
+        'width="360.998" height="91.795" viewBox="0 0 360.998 91.795">'
+        '<path d="M18240,24500.742v-90.795h151.865v.426H18600v24.373c-4.918,0-10.262.08-15.82,0-69.656-.982-103.1,65.8-192.312,65.994v0Z" '
+        'transform="translate(-18239.498 -24409.447)" fill="#fff" stroke="rgba(0,0,0,0)" stroke-width="1"/>'
+        '</svg>'
+        '</a></div>'
+    )
+
+
+def inject_home_highlight(records, lang, home_path):
+    """Pre-render the top-N newest Indonesia-focused articles into the homepage
+    carousel's empty .swiper-wrapper. Idempotent: replaces a previously injected
+    block (delimited by sentinel comments). Returns True if the file was updated."""
+    if not os.path.isfile(home_path):
+        warn(f"Homepage not found, skipped highlight: {os.path.relpath(home_path, SCRIPT_DIR)}")
+        return False
+
+    # Prefer Indonesia-tagged, newest-first; top up with the rest if fewer than N.
+    lang_recs = [r for r in records if r.get(lang)]
+    indo = [r for r in lang_recs if INDONESIA_CATS.intersection(r.get("categories", []))]
+    chosen = indo[:HOME_HIGHLIGHT_COUNT]
+    if len(chosen) < HOME_HIGHLIGHT_COUNT:
+        seen = {r["slug"] for r in chosen}
+        for r in lang_recs:
+            if r["slug"] not in seen:
+                chosen.append(r)
+                if len(chosen) >= HOME_HIGHLIGHT_COUNT:
+                    break
+
+    slides = "".join(_home_slide_html(r, lang) for r in chosen)
+    injected = f"{HOME_INJECT_START}{slides}{HOME_INJECT_END}"
+
+    html = open(home_path, encoding="utf-8", errors="replace").read()
+
+    # Remove any previously injected block first (idempotence).
+    html = re.sub(
+        re.escape(HOME_INJECT_START) + r".*?" + re.escape(HOME_INJECT_END),
+        "",
+        html,
+        flags=re.DOTALL,
+    )
+
+    # Find the carousel's empty wrapper and place slides inside it.
+    car = html.find(HOME_WRAPPER_OPEN)
+    if car == -1:
+        warn(f"No carousel found on homepage, skipped: {os.path.relpath(home_path, SCRIPT_DIR)}")
+        return False
+    w_open = html.find(HOME_WRAPPER_INNER_OPEN, car)
+    if w_open == -1:
+        warn(f"No swiper-wrapper found on homepage, skipped: {os.path.relpath(home_path, SCRIPT_DIR)}")
+        return False
+    insert_at = w_open + len(HOME_WRAPPER_INNER_OPEN)
+    new_html = html[:insert_at] + injected + html[insert_at:]
+
+    with open(home_path, "w", encoding="utf-8") as fh:
+        fh.write(new_html)
+    return True
+
+
 def main():
     dry_run = "--dry-run" in sys.argv
 
@@ -726,6 +828,14 @@ def main():
         fh.write(id_listing)
     generated_files.append(ID_LISTING_PATH)
     print(f"Wrote ID listing → {os.path.relpath(ID_LISTING_PATH, SCRIPT_DIR)}")
+
+    # ── 4b. Inject homepage "latest news" highlight (top-N, Indonesia-focused) ──
+    if inject_home_highlight(records, "en", EN_HOME_PATH):
+        generated_files.append(EN_HOME_PATH)
+        print(f"Injected homepage highlight → {os.path.relpath(EN_HOME_PATH, SCRIPT_DIR)}")
+    if inject_home_highlight(records, "id", ID_HOME_PATH):
+        generated_files.append(ID_HOME_PATH)
+        print(f"Injected homepage highlight → {os.path.relpath(ID_HOME_PATH, SCRIPT_DIR)}")
 
     # ── 5. Generate article pages ──────────────────────────────────────────────
     en_written = 0
