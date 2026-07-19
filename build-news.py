@@ -85,11 +85,13 @@ def _same_image_bytes(a, b):
     return da is not None and da == db
 
 def _local_exists(src):
-    """True if a /documents/... src resolves to a file present in the mirror."""
+    """True if a /documents/... src resolves to an actual FILE in the mirror.
+    Must be a file, not a directory — some cover paths collide with a folder name,
+    and os.path.exists() would wrongly pass for those."""
     if not src or not src.startswith("/documents/"):
         return False
     rel = _unquote(src.split("?", 1)[0]).lstrip("/")
-    return os.path.exists(os.path.join(SITE_ROOT, rel))
+    return os.path.isfile(os.path.join(SITE_ROOT, rel))
 
 def _first_body_image(rec):
     """First body image (any language) that is actually present on disk, or None.
@@ -102,10 +104,12 @@ def _first_body_image(rec):
     return None
 
 def _card_cover(rec):
-    """Effective cover for a listing card: the record's own cover, else the first
-    on-disk body image, else '' (caller renders a colored placeholder)."""
+    """Effective cover for a listing card: the record's own cover IF its file is
+    actually present in the mirror, else the first on-disk body image, else ''
+    (caller renders a colored placeholder). Verifying the file exists prevents a
+    broken <img> when a cover URL was recorded but never downloaded / 404s."""
     cover = (rec.get("cover") or "").strip()
-    if cover:
+    if cover and _local_exists(cover):
         return cover
     return _first_body_image(rec) or ""
 
@@ -478,7 +482,10 @@ def build_article_page(rec, lang, dry_run=False):
         first_body_img = m_body_img.group(1)
 
     cover_html = ""
-    if cover:
+    # Only render the cover header if the cover file is actually present in the mirror
+    # (a recorded-but-missing cover would render a broken image), and skip it when it
+    # duplicates the first body image (same photo would show twice).
+    if cover and _local_exists(cover):
         if first_body_img and _same_image_bytes(cover, first_body_img):
             pass  # already shown as the first body image — skip duplicate header
         else:
