@@ -55,6 +55,35 @@ FOOTER_MARKER = '<div class="lfr-layout-structure-item-footer--copiar-'
 # Default cover image used when a record has no cover set
 DEFAULT_COVER = "/o/vale-theme/images/default-news-cover.png"
 
+# ─── Duplicate-image detection (cover vs first body image) ────────────────────
+import hashlib
+from urllib.parse import unquote as _unquote
+
+_MD5_CACHE = {}
+
+def _md5_of(src):
+    """md5 of the local file a /documents/... src points to, or None if absent."""
+    if not src or not src.startswith("/documents/"):
+        return None
+    if src in _MD5_CACHE:
+        return _MD5_CACHE[src]
+    rel = _unquote(src.split("?", 1)[0]).lstrip("/")
+    path = os.path.join(SITE_ROOT, rel)
+    digest = None
+    try:
+        with open(path, "rb") as f:
+            digest = hashlib.md5(f.read()).hexdigest()
+    except OSError:
+        digest = None
+    _MD5_CACHE[src] = digest
+    return digest
+
+def _same_image_bytes(a, b):
+    """True only if both srcs resolve to local files with identical bytes."""
+    da = _md5_of(a)
+    db = _md5_of(b)
+    return da is not None and da == db
+
 # ─── Slug sanitization ────────────────────────────────────────────────────────
 
 def sanitize_slug(slug):
@@ -413,9 +442,22 @@ def build_article_page(rec, lang, dry_run=False):
             switcher = ""
         switcher += f'<a class="lang-sel-btn active" href="{self_url}">{id_label}</a>'
 
+    # Skip the cover header when it is the SAME image as the first image already in
+    # the body (otherwise the same photo shows twice). Cover and body use different
+    # Liferay URL forms (/documents/<id>/Name.jpg vs /documents/d/guest/name-jpg) and
+    # variant suffixes ((1), -1, _02), so filename comparison is unreliable — compare
+    # the actual file BYTES (md5) of the two local files instead.
+    first_body_img = ""
+    m_body_img = re.search(r'<img[^>]+src="([^"]+)"', body or "")
+    if m_body_img:
+        first_body_img = m_body_img.group(1)
+
     cover_html = ""
     if cover:
-        cover_html = f'<img class="news-article-cover" src="{html_mod.escape(cover)}" alt="{safe_title}">'
+        if first_body_img and _same_image_bytes(cover, first_body_img):
+            pass  # already shown as the first body image — skip duplicate header
+        else:
+            cover_html = f'<img class="news-article-cover" src="{html_mod.escape(cover)}" alt="{safe_title}">'
 
     main_content = f"""\
 <div class="layout-content portlet-layout" id="main-content" role="main">
