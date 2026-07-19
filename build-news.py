@@ -690,11 +690,39 @@ def inject_home_highlight(records, lang, home_path):
                     break
 
     slides = "".join(_home_slide_html(r, lang) for r in chosen)
-    injected = f"{HOME_INJECT_START}{slides}{HOME_INJECT_END}"
+
+    # The site's Swiper is normally initialized inside the (now-dead) Liferay API fetch
+    # callback, so on the static mirror it never runs and the carousel can't scroll.
+    # Initialize Swiper ourselves on the same container/config once the lib is loaded.
+    init_script = (
+        '<script>(function(){'
+        'function initValeNewsSwiper(){'
+        'var el=document.querySelector(".swiper-carrosel-lnko");'
+        'if(!el){return;}'
+        'if(typeof Swiper==="undefined"){return setTimeout(initValeNewsSwiper,120);}'
+        'if(el.classList.contains("swiper-initialized")){return;}'
+        'new Swiper(".swiper-carrosel-lnko",{'
+        'slidesPerView:1,spaceBetween:10,'
+        'navigation:{nextEl:".btn-next-lnko",prevEl:".btn-prev-lnko",'
+        'disabledClass:"disabled",navigationDisabledClass:"disabled"},'
+        'pagination:{el:".swiper-pagination-lnko",clickable:true},'
+        'breakpoints:{640:{slidesPerView:2.1,spaceBetween:20},'
+        '768:{slidesPerView:3.3,spaceBetween:32}}'
+        '});'
+        '}'
+        'if(document.readyState!=="loading"){initValeNewsSwiper();}'
+        'else{document.addEventListener("DOMContentLoaded",initValeNewsSwiper);}'
+        '})();</script>'
+    )
+    # Slides go INSIDE the .swiper-wrapper; the init <script> goes AFTER the wrapper
+    # closes (a <script> among .swiper-wrapper's direct children would be treated as a
+    # slide by Swiper). Both are wrapped in sentinels so re-runs replace cleanly.
+    slides_block = f"{HOME_INJECT_START}{slides}{HOME_INJECT_END}"
+    script_block = f"{HOME_INJECT_START}{init_script}{HOME_INJECT_END}"
 
     html = open(home_path, encoding="utf-8", errors="replace").read()
 
-    # Remove any previously injected block first (idempotence).
+    # Remove any previously injected blocks first (idempotence) — there may be two.
     html = re.sub(
         re.escape(HOME_INJECT_START) + r".*?" + re.escape(HOME_INJECT_END),
         "",
@@ -702,7 +730,7 @@ def inject_home_highlight(records, lang, home_path):
         flags=re.DOTALL,
     )
 
-    # Find the carousel's empty wrapper and place slides inside it.
+    # Find the carousel's empty wrapper.
     car = html.find(HOME_WRAPPER_OPEN)
     if car == -1:
         warn(f"No carousel found on homepage, skipped: {os.path.relpath(home_path, SCRIPT_DIR)}")
@@ -711,8 +739,23 @@ def inject_home_highlight(records, lang, home_path):
     if w_open == -1:
         warn(f"No swiper-wrapper found on homepage, skipped: {os.path.relpath(home_path, SCRIPT_DIR)}")
         return False
-    insert_at = w_open + len(HOME_WRAPPER_INNER_OPEN)
-    new_html = html[:insert_at] + injected + html[insert_at:]
+    # Locate the matching closing </div> of the wrapper (it starts empty as
+    # '<div class="swiper-wrapper"> </div>', so the next </div> closes it).
+    inner_start = w_open + len(HOME_WRAPPER_INNER_OPEN)
+    close_idx = html.find("</div>", inner_start)
+    if close_idx == -1:
+        warn(f"Malformed swiper-wrapper on homepage, skipped: {os.path.relpath(home_path, SCRIPT_DIR)}")
+        return False
+    wrapper_end = close_idx + len("</div>")
+
+    # Insert slides inside the wrapper, then the init script right after it closes.
+    new_html = (
+        html[:inner_start]
+        + slides_block
+        + html[inner_start:wrapper_end]
+        + script_block
+        + html[wrapper_end:]
+    )
 
     with open(home_path, "w", encoding="utf-8") as fh:
         fh.write(new_html)
