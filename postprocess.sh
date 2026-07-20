@@ -23,6 +23,13 @@ if ! python3 "$(dirname "$0")/build-news.py"; then
   exit 1
 fi
 
+# Build static Document Library pages before post-processing HTML
+echo ">>> Building static Document Library pages (build-doc-library.py)..."
+if ! python3 "$(dirname "$0")/build-doc-library.py"; then
+  echo "ERROR: build-doc-library.py failed. Aborting post-processing." >&2
+  exit 1
+fi
+
 echo ">>> Post-processing HTML files..."
 
 # Find all HTML files
