@@ -343,14 +343,27 @@ def _id_section_heading(section):
 # Chrome carries a Liferay language switcher whose <a> uses the dynamic
 # /c/portal/update_language endpoint (404s on static hosting). Repoint it to the
 # static other-language Document Library page.
-_LANG_TOGGLE_RE = re.compile(
-    r'(<nav[^>]*vale-widget-seletor-pt-en[\s\S]*?<a\b[^>]*\bhref=")[^"]*(")'
+# EN chrome renders this nav EMPTY (no pill) → must INJECT one; ID chrome has a
+# pill to repoint. Same logic as build-news.py.
+_LANG_NAV_RE = re.compile(
+    r'(<nav[^>]*vale-widget-seletor-pt-en[^>]*>)([\s\S]*?)(</nav>)'
 )
+_HAS_ANCHOR_RE = re.compile(r'<a\b[^>]*\bhref="[^"]*"')
 
-def _fix_lang_toggle(header, target_url):
+def _fix_lang_toggle(header, target_url, pill_label="EN"):
     if not target_url or "vale-widget-seletor-pt-en" not in header:
         return header
-    return _LANG_TOGGLE_RE.sub(r'\g<1>' + target_url + r'\g<2>', header, count=1)
+    def repl(m):
+        open_tag, inner, close = m.group(1), m.group(2), m.group(3)
+        if _HAS_ANCHOR_RE.search(inner):
+            inner = re.sub(r'(<a\b[^>]*\bhref=")[^"]*(")',
+                           r'\g<1>' + target_url + r'\g<2>', inner, count=1)
+        else:
+            inner = (f'<a href="{target_url}" class="lang-sel-link lang-sel-btn '
+                     f'font-weight-medium texto-sm" aria-label="{pill_label}">'
+                     f'<span>{pill_label}</span></a>')
+        return open_tag + inner + close
+    return _LANG_NAV_RE.sub(repl, header, count=1)
 
 
 def build_page(records, lang):
@@ -370,7 +383,7 @@ def build_page(records, lang):
         other_page = "/indonesia/documents-and-reports.html"
 
     header = re.sub(r'<title>[^<]*</title>', f'<title>{page_title}</title>', header, count=1)
-    header = _fix_lang_toggle(header, other_page)
+    header = _fix_lang_toggle(header, other_page, "ID" if lang == "en" else "EN")
 
     # Group records by section
     by_section = {}

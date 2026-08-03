@@ -241,17 +241,34 @@ _chrome_cache = {}
 # The chrome header carries a Liferay language switcher whose <a> uses the dynamic
 # /c/portal/update_language endpoint (404s on static hosting) with a redirect baked
 # in from the chrome SOURCE page — wrong for every page that reuses that chrome.
-_LANG_TOGGLE_RE = re.compile(
-    r'(<nav[^>]*vale-widget-seletor-pt-en[\s\S]*?<a\b[^>]*\bhref=")[^"]*(")'
+# ALSO: the EN chrome (from an EN source page) renders this nav EMPTY (Liferay only
+# emits the "switch to the OTHER language" link, which wasn't captured), so EN pages
+# have NO pill at all — we must INJECT one.
+# Match the WHOLE nav (open, inner, close). Scoping the has-anchor test to the inner
+# is critical: a header-spanning [\s\S]*? would greedily cross the empty EN nav and
+# match a downstream <a>, mis-detecting "has anchor" and skipping the injection.
+_LANG_NAV_RE = re.compile(
+    r'(<nav[^>]*vale-widget-seletor-pt-en[^>]*>)([\s\S]*?)(</nav>)'
 )
+_HAS_ANCHOR_RE = re.compile(r'<a\b[^>]*\bhref="[^"]*"')
 
-def _fix_lang_toggle(header, target_url):
-    """Repoint the chrome language-switcher pill to `target_url` (the static
-    other-language version of THIS page), replacing the dynamic update_language
-    link. No-op if the nav/anchor isn't present (some chrome renders it empty)."""
+def _fix_lang_toggle(header, target_url, pill_label="EN"):
+    """Make the chrome language pill point to `target_url` (the static other-language
+    version of THIS page). Repoint the nav's existing <a> if present; if the nav is
+    EMPTY (EN chrome renders it empty), inject a pill labelled `pill_label`."""
     if not target_url or "vale-widget-seletor-pt-en" not in header:
         return header
-    return _LANG_TOGGLE_RE.sub(r'\g<1>' + target_url + r'\g<2>', header, count=1)
+    def repl(m):
+        open_tag, inner, close = m.group(1), m.group(2), m.group(3)
+        if _HAS_ANCHOR_RE.search(inner):
+            inner = re.sub(r'(<a\b[^>]*\bhref=")[^"]*(")',
+                           r'\g<1>' + target_url + r'\g<2>', inner, count=1)
+        else:
+            inner = (f'<a href="{target_url}" class="lang-sel-link lang-sel-btn '
+                     f'font-weight-medium texto-sm" aria-label="{pill_label}">'
+                     f'<span>{pill_label}</span></a>')
+        return open_tag + inner + close
+    return _LANG_NAV_RE.sub(repl, header, count=1)
 
 
 def get_chrome(lang):
@@ -451,7 +468,7 @@ def build_listing_page(records, lang, all_categories, dry_run=False):
     # Repoint the chrome language pill to the OTHER-language listing (this page's
     # counterpart), replacing the dynamic update_language 404 link.
     other_listing = "/in/indonesia/all-news.html" if lang == "en" else "/indonesia/all-news.html"
-    header = _fix_lang_toggle(header, other_listing)
+    header = _fix_lang_toggle(header, other_listing, "ID" if lang == "en" else "EN")
 
     # Build filter buttons
     filter_btns = [f'<button class="news-filter-btn active" data-cat="all">{all_label}</button>']
@@ -569,7 +586,7 @@ def build_article_page(rec, lang, dry_run=False):
     # Repoint the chrome language pill to THIS article's other-language version
     # (only when it exists), replacing the dynamic update_language 404 link.
     if has_other:
-        header = _fix_lang_toggle(header, other_url)
+        header = _fix_lang_toggle(header, other_url, "ID" if lang == "en" else "EN")
 
     # Language switcher
     if lang == "en":

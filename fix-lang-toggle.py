@@ -95,5 +95,55 @@ def main():
         for red, n in sorted(unresolved.items()):
             print(f"  {n:3d}x  redirect={red}")
 
+    inject_en_pills(files)
+
+# ─── Symmetric pass: inject an "ID" pill into EN pages ────────────────────────
+# The EN chrome renders the language nav EMPTY (Liferay only emits the "switch to
+# the OTHER language" link, uncaptured for an already-EN page), so EN pages have no
+# pill. Each ID page's (now static) EN pill tells us that page's EN counterpart —
+# invert it to get EN→ID, then inject an ID pill into the matching empty EN nav.
+# EN pages with no ID counterpart are correctly left pill-less.
+_NAV_RE = re.compile(r'(<nav[^>]*vale-widget-seletor-pt-en[^>]*>)([\s\S]*?)(</nav>)')
+_HAS_ANC = re.compile(r'<a\b[^>]*\bhref="[^"]*"')
+_HREF = re.compile(r'<a\b[^>]*\bhref="([^"]*)"')
+
+def inject_en_pills(files):
+    # Build EN→ID from ID pages' EN pills.
+    en_to_id = {}
+    for path in files:
+        rel = os.path.relpath(path, SITE_ROOT)
+        if not rel.startswith("in/") or "/w/" in rel:
+            continue
+        with open(path, encoding="utf-8") as fh:
+            html = fh.read()
+        m = _NAV_RE.search(html)
+        if not m:
+            continue
+        hm = _HREF.search(m.group(2))
+        if hm and not hm.group(1).startswith("/c/portal"):
+            en_to_id[hm.group(1).lstrip("/")] = "/" + rel
+
+    injected = pill_less = 0
+    for path in files:
+        rel = os.path.relpath(path, SITE_ROOT)
+        if rel.startswith("in/") or "/w/" in rel:
+            continue
+        with open(path, encoding="utf-8") as fh:
+            html = fh.read()
+        m = _NAV_RE.search(html)
+        if not m or _HAS_ANC.search(m.group(2)):
+            continue  # not present, or already has a pill
+        target = en_to_id.get(rel)
+        if not target or not os.path.isfile(os.path.join(SITE_ROOT, target.lstrip("/"))):
+            pill_less += 1
+            continue  # English-only page — correctly no pill
+        pill = (f'<a href="{target}" class="lang-sel-link lang-sel-btn '
+                f'font-weight-medium texto-sm" aria-label="ID"><span>ID</span></a>')
+        new = html[:m.start()] + m.group(1) + pill + m.group(3) + html[m.end():]
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(new)
+        injected += 1
+    print(f"Injected ID pill into {injected} EN pages; {pill_less} left pill-less (no ID version).")
+
 if __name__ == "__main__":
     main()
