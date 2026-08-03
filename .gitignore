@@ -8,3 +8,6 @@ node_modules/
 *.tfvars
 !example.tfvars
 MIGRATION_NOTES.md
+
+__pycache__/
+.DS_Store

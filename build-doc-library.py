@@ -200,10 +200,22 @@ FILTER_JS = """
 
 STYLES = """
 <style>
-.doclib-header { padding: 3rem 0 1.5rem; }
-.doclib-header h1 { font-size: 2rem; font-weight: 700; color: var(--verde-vale, #006633); }
-.doclib-header p { color: #555; margin-top: 0.5rem; }
-.doclib-chipbar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 2.5rem; }
+/* Full-bleed hero (simplified from vale.com .vale-fragmento-header-interno) */
+.doclib-hero { position: relative; width: 100%; overflow: hidden; }
+.doclib-hero .doclib-hero-img { display: block; width: 100%; height: 30rem; object-fit: cover; }
+.doclib-hero .doclib-hero-img.img-mobile { height: 20rem; }
+.doclib-hero .doclib-hero-scrim { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.15) 0%, rgba(0,0,0,.35) 55%, rgba(0,0,0,.65) 100%); }
+.doclib-hero .doclib-hero-inner { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; }
+.doclib-hero .doclib-hero-inner .container { padding-bottom: 2.5rem; }
+.doclib-hero .doclib-hero-eyebrow { color: #fff; font-size: 0.9rem; font-weight: 500; letter-spacing: .5px; text-transform: uppercase; margin-bottom: 0.5rem; opacity: .95; }
+.doclib-hero h1 { color: #fff; font-size: 3.25rem; font-weight: 700; line-height: 1.1; margin: 0; }
+@media (max-width: 768px) {
+  .doclib-hero h1 { font-size: 1.5rem; }
+  .doclib-hero .doclib-hero-inner .container { padding-bottom: 1.75rem; }
+}
+.doclib-header { padding: 2rem 0 1rem; }
+.doclib-header p { color: #555; margin: 0; }
+.doclib-chipbar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem; }
 .doclib-chip, .doclib-langbtn {
   display: inline-flex; align-items: center;
   padding: 0.4rem 1rem; border-radius: 1.5rem;
@@ -214,20 +226,19 @@ STYLES = """
 }
 .doclib-chip.active, .doclib-chip:hover,
 .doclib-langbtn.active, .doclib-langbtn:hover { background: var(--verde-vale, #006633); color: #fff; }
-.doclib-section { margin-bottom: 3rem; }
-.doclib-section-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.25rem; border-bottom: 2px solid #e8f5ee; padding-bottom: 0.5rem; }
+.doclib-section { margin-bottom: 1.75rem; }
+.doclib-section-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.8rem; border-bottom: 2px solid #e8f5ee; padding-bottom: 0.5rem; }
 .doclib-section-head h2 { font-size: 1.4rem; font-weight: 700; color: var(--verde-vale, #006633); margin: 0; }
 .doclib-section-count { font-size: 0.85rem; color: #888; }
 .doclib-langfilter { display: flex; gap: 0.4rem; margin-left: auto; }
 .doclib-langfilter .doclib-langbtn { padding: 0.25rem 0.8rem; font-size: 0.8rem; }
-.doclib-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
+.doclib-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.6rem; }
 .doclib-card {
   display: flex; align-items: flex-start; gap: 0.85rem;
   border: 1px solid #e0e0e0; border-radius: 8px; background: #fff;
-  padding: 1rem; transition: box-shadow .15s, border-color .15s;
+  padding: 0.7rem; transition: box-shadow .15s, border-color .15s;
 }
 .doclib-card:hover { border-color: var(--verde-vale, #006633); box-shadow: 0 2px 10px rgba(0,102,51,.08); }
-.doclib-card-icon { flex: 0 0 auto; width: 40px; height: 48px; border-radius: 4px; background: #e8f5ee; color: #006633; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; letter-spacing: .5px; }
 .doclib-card-main { flex: 1; min-width: 0; }
 .doclib-card-title { font-weight: 600; font-size: 0.95rem; color: #222; line-height: 1.3; margin-bottom: 0.35rem; word-break: break-word; }
 .doclib-card-meta { font-size: 0.78rem; color: #777; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
@@ -251,16 +262,16 @@ def render_card(rec, lang):
     title = html_mod.escape(rec.get("title", ""))
     date_disp = html_mod.escape(fmt_date(rec_date(rec), lang))
     size_disp = html_mod.escape(fmt_size(rec.get("sizeBytes", 0)))
-    ext = (rec.get("ext") or "pdf").upper()
     link = html_mod.escape(rec.get("link", ""))
     dl_label = "Download" if lang == "en" else "Unduh"
 
     lang_tag = ""
     lang_attr = ""
     if rec.get("lang"):
-        lg = rec["lang"]  # EN or BH
+        lg = rec["lang"]  # EN or BH (internal filter key)
+        disp = "IN" if lg == "BH" else lg  # human-visible: BH shows as "IN"
         cls = "doclib-lang-tag bh" if lg == "BH" else "doclib-lang-tag"
-        lang_tag = f'<span class="{cls}">{lg}</span>'
+        lang_tag = f'<span class="{cls}">{disp}</span>'
         lang_attr = f' data-lang="{lg}"'
 
     meta_parts = []
@@ -274,7 +285,6 @@ def render_card(rec, lang):
 
     return f"""\
 <div class="doclib-card"{lang_attr}>
-  <div class="doclib-card-icon">{html_mod.escape(ext)}</div>
   <div class="doclib-card-main">
     <div class="doclib-card-title">{title}</div>
     <div class="doclib-card-meta">{meta_html}</div>
@@ -296,9 +306,9 @@ def render_section(section, recs, lang):
     langfilter = ""
     if section == PRESS_SECTION:
         if lang == "en":
-            labels = [("all", "All"), ("EN", "English"), ("BH", "Bahasa")]
+            labels = [("all", "All"), ("EN", "English"), ("BH", "Indonesia")]
         else:
-            labels = [("all", "Semua"), ("EN", "English"), ("BH", "Bahasa")]
+            labels = [("all", "Semua"), ("EN", "English"), ("BH", "Indonesia")]
         btns = "".join(
             f'<button class="doclib-langbtn{" active" if k == "all" else ""}" data-lang="{k}">{v}</button>'
             for k, v in labels
@@ -330,6 +340,19 @@ def _id_section_heading(section):
 
 # ─── Page builder ─────────────────────────────────────────────────────────────
 
+# Chrome carries a Liferay language switcher whose <a> uses the dynamic
+# /c/portal/update_language endpoint (404s on static hosting). Repoint it to the
+# static other-language Document Library page.
+_LANG_TOGGLE_RE = re.compile(
+    r'(<nav[^>]*vale-widget-seletor-pt-en[\s\S]*?<a\b[^>]*\bhref=")[^"]*(")'
+)
+
+def _fix_lang_toggle(header, target_url):
+    if not target_url or "vale-widget-seletor-pt-en" not in header:
+        return header
+    return _LANG_TOGGLE_RE.sub(r'\g<1>' + target_url + r'\g<2>', header, count=1)
+
+
 def build_page(records, lang):
     header, footer = get_chrome(lang)
 
@@ -338,13 +361,16 @@ def build_page(records, lang):
         heading = "Documents and Reports"
         intro = "Annual reports, sustainability reports, financial statements, presentations, and press releases."
         all_label = "All"
+        other_page = "/in/indonesia/dokumen-dan-laporan.html"
     else:
         page_title = "Dokumen dan Laporan — PT Vale Indonesia Tbk"
         heading = "Dokumen dan Laporan"
         intro = "Laporan tahunan, laporan keberlanjutan, laporan keuangan, presentasi, dan siaran pers."
         all_label = "Semua"
+        other_page = "/indonesia/documents-and-reports.html"
 
     header = re.sub(r'<title>[^<]*</title>', f'<title>{page_title}</title>', header, count=1)
+    header = _fix_lang_toggle(header, other_page)
 
     # Group records by section
     by_section = {}
@@ -365,11 +391,24 @@ def build_page(records, lang):
         for section in SECTION_ORDER if section in by_section
     )
 
+    hero = f"""\
+<section class="doclib-hero">
+  <img class="doclib-hero-img img-desktop d-none d-md-block" src="/documents/44618/1276840/press-releases-header.png" alt="{html_mod.escape(heading)}" fetchpriority="high">
+  <img class="doclib-hero-img img-mobile d-md-none" src="/documents/44618/1276840/press-releases-header-mobile.png" alt="{html_mod.escape(heading)}" fetchpriority="high">
+  <div class="doclib-hero-scrim"></div>
+  <div class="doclib-hero-inner">
+    <div class="container">
+      <div class="doclib-hero-eyebrow">PT Vale Indonesia</div>
+      <h1>{html_mod.escape(heading)}</h1>
+    </div>
+  </div>
+</section>"""
+
     main_content = f"""\
 <div class="layout-content portlet-layout" id="main-content" role="main">
 {STYLES}
+{hero}
 <div class="container doclib-header">
-  <h1>{html_mod.escape(heading)}</h1>
   <p>{html_mod.escape(intro)}</p>
 </div>
 <div class="container">

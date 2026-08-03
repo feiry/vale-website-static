@@ -35,7 +35,12 @@ from urllib.parse import unquote
 # ─── Paths ────────────────────────────────────────────────────────────────────
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_FILE = os.path.join(SCRIPT_DIR, "site-data", "news.json")
+# news.json is the FULL master export (995 articles incl. global Vale content).
+# news-indonesia.json is the published scope — only PT Vale Indonesia news, per
+# Ibu Sri's curated CSV list (KEEP = on her list OR genuine Indonesia-local tag,
+# excluding global). Build from the Indonesia set; regenerate it via the
+# reconciliation when the master export or her list changes.
+DATA_FILE = os.path.join(SCRIPT_DIR, "site-data", "news-indonesia.json")
 SITE_ROOT = os.path.join(SCRIPT_DIR, "site", "vale.com")
 
 # Chrome source pages (known-good mirror pages to extract header/footer from)
@@ -78,12 +83,16 @@ from urllib.parse import unquote as _unquote
 _MD5_CACHE = {}
 
 def _md5_of(src):
-    """md5 of the local file a /documents/... src points to, or None if absent."""
+    """md5 of the local file a /documents/... src points to, or None if absent.
+    Normalizes the src first (strips trailing /<uuid> + ?query) so a cover URL in
+    the '/documents/<id>/name.jpg/<uuid>' form resolves to the same on-disk file as
+    its '/documents/d/guest/name-jpg' body-image twin — otherwise the duplicate
+    cover header (same photo shown twice) is never detected."""
     if not src or not src.startswith("/documents/"):
         return None
     if src in _MD5_CACHE:
         return _MD5_CACHE[src]
-    rel = _unquote(src.split("?", 1)[0]).lstrip("/")
+    rel = _unquote(_served_cover_path(src)).lstrip("/")
     path = os.path.join(SITE_ROOT, rel)
     digest = None
     try:
@@ -100,13 +109,29 @@ def _same_image_bytes(a, b):
     db = _md5_of(b)
     return da is not None and da == db
 
+def _served_cover_path(src):
+    """Normalize a Liferay document URL to the path the mirror actually stores.
+    Cover URLs look like '/documents/44618/xxx/name.jpg/<uuid>?version=...' — the
+    trailing /<uuid> segment (after the filename) and the ?query must be dropped so
+    the path matches the on-disk file 'name.jpg'. Returns the cleaned /documents path."""
+    if not src:
+        return ""
+    p = src.split("?", 1)[0]
+    parts = p.rstrip("/").split("/")
+    # Keep everything up to and including the last segment that has a file extension.
+    for i in range(len(parts) - 1, -1, -1):
+        if "." in parts[i]:
+            return "/".join(parts[: i + 1])
+    return p
+
 def _local_exists(src):
     """True if a /documents/... src resolves to an actual FILE in the mirror.
     Must be a file, not a directory — some cover paths collide with a folder name,
-    and os.path.exists() would wrongly pass for those."""
+    and os.path.exists() would wrongly pass for those. The src is normalized first
+    (strips the trailing /<uuid> segment + ?query) so real covers aren't missed."""
     if not src or not src.startswith("/documents/"):
         return False
-    rel = _unquote(src.split("?", 1)[0]).lstrip("/")
+    rel = _unquote(_served_cover_path(src)).lstrip("/")
     return os.path.isfile(os.path.join(SITE_ROOT, rel))
 
 def _first_body_image(rec):
@@ -116,17 +141,18 @@ def _first_body_image(rec):
         block = rec.get(lang) or {}
         for m in re.findall(r'<img[^>]+src="([^"]+)"', block.get("body", "") or ""):
             if m.startswith("/documents/") and _local_exists(m):
-                return m
+                return _served_cover_path(m)
     return None
 
 def _card_cover(rec):
     """Effective cover for a listing card: the record's own cover IF its file is
     actually present in the mirror, else the first on-disk body image, else ''
     (caller renders a colored placeholder). Verifying the file exists prevents a
-    broken <img> when a cover URL was recorded but never downloaded / 404s."""
+    broken <img> when a cover URL was recorded but never downloaded / 404s. The
+    returned src is normalized to the served path (no trailing /<uuid> or ?query)."""
     cover = (rec.get("cover") or "").strip()
     if cover and _local_exists(cover):
-        return cover
+        return _served_cover_path(cover)
     return _first_body_image(rec) or ""
 
 # ─── Slug sanitization ────────────────────────────────────────────────────────
@@ -212,6 +238,22 @@ def _extract_chrome(src_path, lang_code, listing_url, article_url_pattern=None):
 _chrome_cache = {}
 
 
+# The chrome header carries a Liferay language switcher whose <a> uses the dynamic
+# /c/portal/update_language endpoint (404s on static hosting) with a redirect baked
+# in from the chrome SOURCE page — wrong for every page that reuses that chrome.
+_LANG_TOGGLE_RE = re.compile(
+    r'(<nav[^>]*vale-widget-seletor-pt-en[\s\S]*?<a\b[^>]*\bhref=")[^"]*(")'
+)
+
+def _fix_lang_toggle(header, target_url):
+    """Repoint the chrome language-switcher pill to `target_url` (the static
+    other-language version of THIS page), replacing the dynamic update_language
+    link. No-op if the nav/anchor isn't present (some chrome renders it empty)."""
+    if not target_url or "vale-widget-seletor-pt-en" not in header:
+        return header
+    return _LANG_TOGGLE_RE.sub(r'\g<1>' + target_url + r'\g<2>', header, count=1)
+
+
 def get_chrome(lang):
     """Return (header, footer) for lang="en" or lang="id"."""
     if lang in _chrome_cache:
@@ -273,9 +315,31 @@ CATEGORY_FILTER_JS = """
 
 LISTING_STYLES = """
 <style>
+.news-hero { position: relative; width: 100%; overflow: hidden; }
+.news-hero-img { display: block; width: 100%; height: 30rem; object-fit: cover; }
+@media (max-width: 767px) { .news-hero-img { height: 22rem; } }
+.news-hero-scrim {
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.35) 50%, rgba(0,0,0,0.1) 100%);
+}
+.news-hero-inner {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; justify-content: flex-end;
+}
+.news-hero-inner .container { padding-bottom: 2.5rem; }
+.news-hero-eyebrow {
+  color: #fff; font-size: 0.9rem; font-weight: 500;
+  letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 0.5rem;
+  opacity: 0.9;
+}
+.news-hero-title {
+  color: #fff; font-size: 3rem; font-weight: 700;
+  line-height: 1.1; margin: 0; max-width: 40rem;
+}
+@media (max-width: 767px) { .news-hero-title { font-size: 2rem; } }
 .news-listing-header { padding: 3rem 0 2rem; }
 .news-listing-header h1 { font-size: 2rem; font-weight: 700; color: var(--verde-vale, #006633); }
-.news-filter-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 2rem; }
+.news-filter-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; padding-top: 2.5rem; margin-bottom: 2rem; }
 .news-filter-btn {
   display: inline-flex; align-items: center;
   padding: 0.4rem 1rem; border-radius: 1.5rem;
@@ -318,10 +382,27 @@ LISTING_STYLES = """
 
 ARTICLE_STYLES = """
 <style>
+/* Full-bleed hero banner (mirrors vale.com article pages + our listing hero). It
+   pushes all article content BELOW the wavy chrome header so the decorative .wave
+   SVG never overlaps the language switcher / title. */
+.news-article-hero { position: relative; width: 100%; overflow: hidden; }
+.news-article-hero-img { display: block; width: 100%; height: 22rem; object-fit: cover; }
+@media (max-width: 767px) { .news-article-hero-img { height: 16rem; } }
+.news-article-hero-scrim { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.35) 50%, rgba(0,0,0,0.1) 100%); }
+.news-article-hero-inner { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; }
+.news-article-hero-inner .container { max-width: 860px; margin: 0 auto; padding: 0 1rem 2rem; width: 100%; }
+.news-article-hero-eyebrow { color: #fff; font-size: 0.9rem; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 0.4rem; opacity: 0.9; }
+.news-article-hero-title { color: #fff; font-size: 2.5rem; font-weight: 700; line-height: 1.1; margin: 0; }
+@media (max-width: 767px) { .news-article-hero-title { font-size: 1.75rem; } }
 .news-article-wrap { max-width: 860px; margin: 0 auto; padding: 2rem 1rem 4rem; }
 .news-article-back { display: inline-flex; align-items: center; gap: 0.4rem; margin-bottom: 1.5rem; color: var(--verde-vale, #006633); text-decoration: none; font-weight: 500; }
 .news-article-back:hover { text-decoration: underline; }
-.news-article-lang-switcher { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+/* position:relative + z-index lifts the switcher above the decorative .wave SVG
+   (z-index:0, position-absolute, ~20rem wide, top-left) whose box otherwise
+   overlaps and swallows clicks/hover on the left-most button (the "English"
+   button on ID pages). The chrome's own CSS only sets pointer-events:none on
+   .images-wave-image, NOT on .wave — so we raise our switcher instead. */
+.news-article-lang-switcher { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; position: relative; z-index: 1; }
 .lang-sel-btn {
   display: inline-flex; align-items: center; padding: 0.4rem 1rem;
   border-radius: 1.5rem; border: 2px solid var(--verde-vale, #006633);
@@ -366,6 +447,11 @@ def build_listing_page(records, lang, all_categories, dry_run=False):
         back_url = listing_url
 
     header = re.sub(r'(<title>)[^<]*(</title>)', r'\g<1>' + page_title + r'\g<2>', header, count=1)
+
+    # Repoint the chrome language pill to the OTHER-language listing (this page's
+    # counterpart), replacing the dynamic update_language 404 link.
+    other_listing = "/in/indonesia/all-news.html" if lang == "en" else "/indonesia/all-news.html"
+    header = _fix_lang_toggle(header, other_listing)
 
     # Build filter buttons
     filter_btns = [f'<button class="news-filter-btn active" data-cat="all">{all_label}</button>']
@@ -414,8 +500,15 @@ def build_listing_page(records, lang, all_categories, dry_run=False):
     main_content = f"""\
 <div class="layout-content portlet-layout" id="main-content" role="main">
 {LISTING_STYLES}
-<div class="container news-listing-header">
-  <h1>{html_mod.escape(heading)}</h1>
+<div class="news-hero">
+  <img class="news-hero-img" src="/documents/44618/9161766/news-header-mining.jpg" alt="{html_mod.escape(heading)}">
+  <div class="news-hero-scrim"></div>
+  <div class="news-hero-inner">
+    <div class="container">
+      <div class="news-hero-eyebrow">PT Vale Indonesia</div>
+      <h1 class="news-hero-title">{html_mod.escape(heading)}</h1>
+    </div>
+  </div>
 </div>
 <div class="container">
   <div class="news-filter-bar">
@@ -473,6 +566,11 @@ def build_article_page(rec, lang, dry_run=False):
         header, count=1
     )
 
+    # Repoint the chrome language pill to THIS article's other-language version
+    # (only when it exists), replacing the dynamic update_language 404 link.
+    if has_other:
+        header = _fix_lang_toggle(header, other_url)
+
     # Language switcher
     if lang == "en":
         switcher = (
@@ -505,11 +603,32 @@ def build_article_page(rec, lang, dry_run=False):
         if first_body_img and _same_image_bytes(cover, first_body_img):
             pass  # already shown as the first body image — skip duplicate header
         else:
-            cover_html = f'<img class="news-article-cover" src="{html_mod.escape(cover)}" alt="{safe_title}">'
+            # Emit the normalized served path (no trailing /<uuid> or ?query), else
+            # the <img> would 404 against the on-disk file name.
+            cover_src = _served_cover_path(cover)
+            cover_html = f'<img class="news-article-cover" src="{html_mod.escape(cover_src)}" alt="{safe_title}">'
+
+    hero_heading = "News" if lang == "en" else "Berita"
+    # Hero image matches vale.com's News ARTICLE header (train-through-hills),
+    # which differs from the News LISTING hero (field workers). Desktop + mobile
+    # variants, same as the source page.
+    hero = f"""\
+<section class="news-article-hero">
+  <img class="news-article-hero-img d-none d-md-block" src="/documents/d/guest/banner-teste12-1" alt="{hero_heading}">
+  <img class="news-article-hero-img d-md-none" src="/documents/d/guest/banner-mobile-final" alt="{hero_heading}">
+  <div class="news-article-hero-scrim"></div>
+  <div class="news-article-hero-inner">
+    <div class="container">
+      <div class="news-article-hero-eyebrow">PT Vale Indonesia</div>
+      <h2 class="news-article-hero-title">{hero_heading}</h2>
+    </div>
+  </div>
+</section>"""
 
     main_content = f"""\
 <div class="layout-content portlet-layout" id="main-content" role="main">
 {ARTICLE_STYLES}
+{hero}
 <div class="news-article-wrap">
   <a class="news-article-back" href="{back_url}">{back_label}</a>
   <div class="news-article-lang-switcher">
