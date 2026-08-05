@@ -64,7 +64,9 @@ This phasing lets Vale test the real production content and infrastructure priva
         │  Storage account (prod)              │
         │  • StorageV2, ZRS, HTTPS-only        │
         │  • Static-website $web               │
-        │  • index.html / 404.html             │
+        │  • index.html (redirect stub) →      │
+        │    indonesia.html (real homepage)    │
+        │  • 404.html                          │
         └─────────────────────────────────────┘
 
   Phase 1  = storage box only, reached directly on *.web.core.windows.net
@@ -85,7 +87,7 @@ This phasing lets Vale test the real production content and infrastructure priva
 |---|---|---|
 | 1 | **Resource group** | `rg-staticsite-prod` — region **Indonesia Central** (`indonesiacentral`), matching the valeforms prod convention. *EY to confirm final name.* |
 | 2 | **Storage account** | Name per convention, e.g. `ststaticsiteprodid` (≤24 chars, lowercase, globally unique). **StorageV2**, **Standard_ZRS** (zone-redundant — prod minimum), **HTTPS-only = true**, **min TLS = 1.2**, public blob access disabled except via `$web`. |
-| 3 | **Static-website hosting** | Enabled on the account. `indexDocument = index.html`, `errorDocument404Path = 404.html` (mirrors dev exactly). |
+| 3 | **Static-website hosting** | Enabled on the account. `indexDocument = index.html`, `errorDocument404Path = 404.html` (mirrors dev exactly). **Note:** `index.html` is a lightweight redirect stub (`<meta http-equiv="refresh" ... url=/indonesia.html>`) — the **actual homepage content is `indonesia.html`**. Root `/` therefore serves the stub and the browser lands on `/indonesia.html`. Both files must be present. |
 | 4 | **Private archive container** | `crawl-archive` (private, **not** `$web`) — for the frozen source snapshot/tarball, matching dev practice. Optional but recommended. |
 
 ### 4.2 Configuration requirements
@@ -98,7 +100,7 @@ This phasing lets Vale test the real production content and infrastructure priva
 
 Deployed on `https://<account>.<zone>.web.core.windows.net/`, confirm:
 
-- Homepage + flattened pages render (EN and ID);
+- Root `/` serves the `index.html` stub and redirects to `/indonesia.html` (the real homepage); homepage + flattened pages render (EN and ID);
 - Bilingual correctness — EN pages `<html lang="en-US">`, ID pages `<html lang="in-ID">`;
 - CSS/JS served with correct MIME (not `text/plain`);
 - Document downloads and space-in-filename PDFs resolve;
