@@ -26,6 +26,81 @@ TOGGLE_RE = re.compile(
     r'href="(/c/portal/update_language\?[^"]*)"'
 )
 
+# Some pages have INDONESIAN-named files under BOTH /indonesia/ and /in/indonesia/
+# but their real ENGLISH page has a different (English) name. Prefix-swapping alone
+# links Indonesian→Indonesian (URL changes, content stays ID — Peter's 2026-08-06
+# audit). This explicit map pairs each Indonesian slug with its English twin so both
+# directions resolve to the correctly-languaged page.
+ID_EN_TWINS = {
+    "operasi-kami": "our-operations",
+    "direksi": "board-of-directors",
+    "dewan-komisaris": "board-of-commisioners",
+    "komite": "committees",
+    "kebijakan-tata-kelola-perusahaan": "corporate-governance-policy",
+    "manajemen-risiko": "risk-management",
+    "sistem-pelaporan-pelanggaran": "whistleblowing-system",
+    "rehabilitasi-pascatambang": "post-mining-rehabilitation",
+    "keanekaragaman-hayati": "biodiversity",
+    "taman-kehati-sawerigading-wallacea": "sawerigading-wallacea-biodiversity-park",
+    "air-dan-limbah-cair": "water-and-effluent",
+    "emisi": "emission",
+    "limbah": "waste",
+    "talenta-kami": "our-people",
+    "keberagaman-kesetaraan-inklusi": "diversity-equity-inclusion",
+    "kesehatan-dan-keselamatan-kerja": "occupational-health-and-safety",
+    "hak-asasi-manusia": "human-rights",
+    "komunitas": "community",
+    "program-pengembangan-masyarakat": "social-development-program",
+    "tata-kelola-esg": "esg-governance",
+    "strategi-esg": "esg-strategy",
+    "manajemen-risiko-esg": "esg-risk-management",
+}
+
+_NAV_RE = re.compile(r'(<nav[^>]*vale-widget-seletor-pt-en[^>]*>)([\s\S]*?)(</nav>)')
+_HAS_ANC = re.compile(r'<a\b[^>]*\bhref="[^"]*"')
+
+def _set_pill(html, target, label):
+    m = _NAV_RE.search(html)
+    if not m:
+        return html, False
+    inner = m.group(2)
+    if _HAS_ANC.search(inner):
+        inner = re.sub(r'(<a\b[^>]*\bhref=")[^"]*(")', r'\g<1>' + target + r'\g<2>', inner, count=1)
+    else:
+        inner = (f'<a href="{target}" class="lang-sel-link lang-sel-btn font-weight-medium '
+                 f'texto-sm" aria-label="{label}"><span>{label}</span></a>')
+    return html[:m.start()] + m.group(1) + inner + m.group(3) + html[m.end():], True
+
+def fix_id_en_twins():
+    """Point Indonesian-named pages (under both prefixes) at their English twin, and
+    the English twin back at the Indonesian page. Both must exist."""
+    fixed = 0
+    for idslug, enslug in ID_EN_TWINS.items():
+        en_target = f"/indonesia/{enslug}.html"
+        if not os.path.isfile(os.path.join(SITE_ROOT, en_target.lstrip("/"))):
+            continue
+        # ID-content pages (both prefixes) → EN twin
+        for rel in (f"indonesia/{idslug}.html", f"in/indonesia/{idslug}.html"):
+            p = os.path.join(SITE_ROOT, rel)
+            if not os.path.isfile(p):
+                continue
+            html = open(p, encoding="utf-8").read()
+            new, ok = _set_pill(html, en_target, "EN")
+            if ok and new != html:
+                open(p, "w", encoding="utf-8").write(new)
+                fixed += 1
+        # EN twin → ID page (prefer /in/ prefix)
+        id_target = f"/in/indonesia/{idslug}.html"
+        if not os.path.isfile(os.path.join(SITE_ROOT, id_target.lstrip("/"))):
+            id_target = f"/indonesia/{idslug}.html"
+        p = os.path.join(SITE_ROOT, f"indonesia/{enslug}.html")
+        html = open(p, encoding="utf-8").read()
+        new, ok = _set_pill(html, id_target, "ID")
+        if ok and new != html:
+            open(p, "w", encoding="utf-8").write(new)
+            fixed += 1
+    print(f"Fixed ID↔EN twin toggles on {fixed} pages.")
+
 def parse_params(qs):
     """Extract redirect + languageId from the (html-escaped) query string."""
     qs = qs.replace("&amp;", "&")
@@ -96,6 +171,7 @@ def main():
             print(f"  {n:3d}x  redirect={red}")
 
     inject_en_pills(files)
+    fix_id_en_twins()
 
 # ─── Symmetric pass: inject an "ID" pill into EN pages ────────────────────────
 # The EN chrome renders the language nav EMPTY (Liferay only emits the "switch to
