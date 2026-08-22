@@ -602,23 +602,23 @@ def build_article_page(rec, lang, dry_run=False):
             switcher = ""
         switcher += f'<a class="lang-sel-btn active" href="{self_url}">{id_label}</a>'
 
-    # Skip the cover header when it is the SAME image as the first image already in
-    # the body (otherwise the same photo shows twice). Cover and body use different
-    # Liferay URL forms (/documents/<id>/Name.jpg vs /documents/d/guest/name-jpg) and
-    # variant suffixes ((1), -1, _02), so filename comparison is unreliable — compare
-    # the actual file BYTES (md5) of the two local files instead.
-    first_body_img = ""
-    m_body_img = re.search(r'<img[^>]+src="([^"]+)"', body or "")
-    if m_body_img:
-        first_body_img = m_body_img.group(1)
+    # Detect whether the body LEADS with an image (its first content element is an
+    # <img>, allowing a wrapping <p>). When it does, the body already opens with a
+    # photo, so also rendering the cover header stacks two images back-to-back — the
+    # cover and the body's lead shot are almost always the same event (often the same
+    # photo in a different crop / URL form / variant suffix), which reads as a doubled
+    # image. In that case we skip the cover header and let the body image be the lead.
+    body_leads_with_img = bool(
+        re.match(r'\s*(?:<p[^>]*>\s*)?<img\b', body or "", re.IGNORECASE)
+    )
 
     cover_html = ""
     # Only render the cover header if the cover file is actually present in the mirror
-    # (a recorded-but-missing cover would render a broken image), and skip it when it
-    # duplicates the first body image (same photo would show twice).
+    # (a recorded-but-missing cover would render a broken image), and skip it when the
+    # body already opens with an image (same photo would otherwise show twice).
     if cover and _local_exists(cover):
-        if first_body_img and _same_image_bytes(cover, first_body_img):
-            pass  # already shown as the first body image — skip duplicate header
+        if body_leads_with_img:
+            pass  # body opens with a photo — skip the duplicate cover header
         else:
             # Emit the normalized served path (no trailing /<uuid> or ?query), else
             # the <img> would 404 against the on-disk file name.
