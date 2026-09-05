@@ -2,14 +2,30 @@
 
 ## Files
 
-- `news.json` — the editable data source (408 articles, bilingual EN + ID).
-- `TEMPLATE-record.json` — copy-paste this when adding a new article.
+- `news-indonesia.json` — the editable data source (353 articles, bilingual EN + ID). This is what `build-news.py` reads.
+- `news.json` — the full 995-article master export (backup/source). Not read by the build.
+- `TEMPLATE-record.json` — the raw record shape (for reference / the manual method).
 
-## Steps
+## Preferred method — the intake converter
 
-1. Open `news.json` in a text editor.
+For a COMMs-authored request, use `intake-to-news.py` instead of hand-editing JSON. It
+turns a filled Markdown request (`docs/templates/news-request.md`) into a validated record
+and appends it safely — validating date, category, slug uniqueness, and referenced images,
+backing up the data file, and self-checking that the result still parses:
+
+```bash
+python3 intake-to-news.py <request-folder>/request.md --dry-run   # inspect
+python3 intake-to-news.py <request-folder>/request.md             # write
+python3 build-news.py                                             # rebuild pages
+```
+
+Full operator steps (image placement, deploy) are in `docs/GDI-content-update-runbook.md`.
+
+## Manual method (fallback)
+
+1. Open `news-indonesia.json` in a text editor.
 2. Copy the contents of `TEMPLATE-record.json`.
-3. Paste it as the **first item** in the JSON array (after the opening `[`).
+3. Paste it as a new item in the JSON array (position doesn't matter — the build sorts by date).
 4. Fill in all fields:
    - `slug` — URL-safe identifier, e.g. `pt-vale-wins-award-2026`. Must be unique. Used as the article URL.
    - `date` — ISO date `YYYY-MM-DD`, e.g. `2026-07-18`. Used for sorting (newest first).
@@ -19,7 +35,7 @@
    - `id.title`, `id.subtitle`, `id.body` — Indonesian content. `body` is full HTML.
 5. If only one language is available, omit the missing language block entirely (remove the `"en"` or `"id"` key). The generator will skip that language's page and hide the language switcher option.
 6. Optionally drop a cover image under `site/vale.com/...` and set its path in `cover`.
-7. Run the deploy script. It runs `build-news.py` automatically before uploading. If the build fails, the deploy aborts.
+7. Run `python3 build-news.py`, then deploy the changed files (see the GDI runbook).
 
 ## Build only (without deploying)
 
@@ -43,4 +59,8 @@ The builder checks for:
 
 ## Category filter
 
-The listing page has client-side category filter buttons (All / Indonesia / ESG / …). These degrade gracefully: with JavaScript disabled, all articles are visible and nothing is hidden server-side.
+The listing page shows only a curated set of filter chips (Option B, per Ibu Sri):
+`All`, `IGP Morowali`, `IGP Pomalaa`, `IGP Sorlim`, `People`, `Social`, `Sustainability`
+(the `FILTER_CHIP_ALLOWLIST` in `build-news.py`). Articles keep all their categories, so
+filtering still works — only the visible chip row is trimmed. The filter is client-side and
+degrades gracefully: with JavaScript disabled, all articles are visible.
