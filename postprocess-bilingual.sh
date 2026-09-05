@@ -399,6 +399,107 @@ else:
 PYEOF
 done
 
+# 14. Fix footer sub-column alignment (SITEWIDE — the footer is on every page).
+#     The footer link lists used `columns: 2` (@media min-width:992px), which balances the two
+#     sub-columns by HEIGHT so the 2nd sub-column started lower (uneven tops) — worsened by
+#     2-line items and the A+/A- font control. Replace with CSS grid + a fixed row count so both
+#     sub-columns always top-align, independent of content height / wrapping / font size.
+#     Desktop-only (the mobile/tablet footer is a separate single-column menu). Idempotent.
+echo ">>> Fixing footer sub-column alignment (sitewide)..."
+for f in "${HTML_FILES[@]}"; do
+  HTML_FILE="$f" python3 - << 'PYEOF'
+import os, re
+path = os.environ["HTML_FILE"]
+html = open(path, encoding="utf-8").read()
+if "grid-auto-flow: column" in html and "columns: 2;" not in html:
+    raise SystemExit(0)  # already fixed
+# Match the columns:2 rule block, capturing the leading indent of the selector line.
+pat = re.compile(
+    r'([ \t]*)\.vale-fragmento-footer \.desktop-content ul \{\s*'
+    r'columns:\s*2;\s*-moz-columns:\s*2;\s*-webkit-columns:\s*2;\s*\}',
+    re.MULTILINE)
+def repl(m):
+    ind = m.group(1); b = ind + "  "
+    return (f'{ind}/* GDI-FOOTERGRID: footer sub-columns top-aligned via CSS grid (was columns:2,\n'
+            f'{ind}   which balanced by height so the 2nd sub-column started lower). Desktop-only. */\n'
+            f'{ind}.vale-fragmento-footer .desktop-content ul {{\n'
+            f'{b}display: grid;\n{b}grid-template-columns: 1fr 1fr;\n{b}grid-template-rows: repeat(4, auto);\n'
+            f'{b}grid-auto-flow: column;\n{b}column-gap: 1rem;\n{b}align-content: start;\n{ind}}}')
+new, n = pat.subn(repl, html)
+if n:
+    open(path, "w", encoding="utf-8").write(new)
+PYEOF
+done
+
+# 15. Swap the homepage promo popup to the COMMs domain-change media (landing pages only).
+#     Points the popup image + button at the Domain Change Notification PDF, uses the horizontal
+#     media, and caps the image so it fits one screen without distortion (natural ratio preserved).
+#     Idempotent (guarded by GDI-POPUP marker). Only touches pages that carry the #modal-tvhs popup.
+echo ">>> Applying domain-change popup (landing pages)..."
+# Ensure the popup image is on disk (source of truth lives in docs/, which is tracked; site/ is not).
+POPUP_IMG_DIR="$SITE_DIR/documents/44618/1068266"
+POPUP_IMG="$POPUP_IMG_DIR/popup-domain-change-2026-09-h.jpg"
+if [[ ! -f "$POPUP_IMG" && -f "docs/New-Popup_Media-horizontal.jpeg" ]]; then
+  mkdir -p "$POPUP_IMG_DIR"
+  cp "docs/New-Popup_Media-horizontal.jpeg" "$POPUP_IMG"
+  echo "    placed popup image: ${POPUP_IMG#$SITE_DIR/}"
+fi
+for home in "$SITE_DIR/indonesia.html" "$SITE_DIR/in/indonesia.html"; do
+  [[ -f "$home" ]] || continue
+  HOME_FILE="$home" python3 - << 'PYEOF'
+import os, re
+path = os.environ["HOME_FILE"]
+html = open(path, encoding="utf-8").read()
+if 'id="modal-tvhs"' not in html:
+    raise SystemExit(0)  # no popup on this page
+if "GDI-POPUP" in html and "popup-domain-change-2026-09-h.jpg" in html:
+    raise SystemExit(0)  # already applied
+
+changed = False
+PDF = "/documents/44618/1438416/Domain+Change+Notification.pdf"
+IMG = "/documents/44618/1068266/popup-domain-change-2026-09-h.jpg"
+
+# Isolate ONLY the #modal-tvhs popup block so link/image/button edits never touch the many
+# identical "Investor Relation Publications" (ir-publications) links elsewhere on the page.
+mstart = html.find('id="modal-tvhs"')
+open_div = html.rfind("<div", 0, mstart)          # the modal's opening <div ... id="modal-tvhs">
+# walk forward to the matching </div> for that opening div
+depth = 0; i = open_div; end = -1
+for m in re.finditer(r'<div\b|</div>', html[open_div:]):
+    depth += 1 if m.group(0) == "<div" else -1
+    if depth == 0:
+        end = open_div + m.end(); break
+if open_div != -1 and end != -1:
+    block = html[open_div:end]
+    orig_block = block
+    # a) point the popup image + button links at the PDF (whatever the current target is:
+    #    ir-publications / publikasi-ir, absolute vale.com or root-relative)
+    block = re.sub(r'href="[^"]*(?:ir-publications|publikasi-ir)\.html"', f'href="{PDF}"', block)
+    # b) swap the image src (old AR-2025 image or the portrait interim → the horizontal media)
+    block = re.sub(r'/documents/44618/1068266/pop-up-AR-2025[^"]*\.jpg', IMG, block)
+    block = block.replace("/documents/44618/1068266/popup-domain-change-2026-09.jpg", IMG)
+    # c) button label → domain-change CTA (EN + ID)
+    block = block.replace("Read our 2025 Annual Report &amp; Sustainability Report", "Read the Domain Change Notification")
+    block = block.replace("Baca Laporan Tahunan &amp; Laporan Keberlanjutan 2025", "Baca Pemberitahuan Perubahan Domain")
+    if block != orig_block:
+        html = html[:open_div] + block + html[end:]; changed = True
+
+# d) cap the popup image so a landscape/portrait media fits one screen without distortion
+if "GDI-POPUP" not in html:
+    css = ('\n/* GDI-POPUP: cap the popup image to fit one screen at its natural ratio (override w-100). */\n'
+           '.vale-fragmento-modal-popup.modal .modal-content .component-image img {\n'
+           '  width: auto !important; height: auto !important; max-width: 100%;\n'
+           '  max-height: 70vh; object-fit: contain; margin: 0 auto; display: block;\n}\n')
+    m = re.search(r'(\.vale-fragmento-modal-popup\.modal \.modal-content \{[^}]*\})', html)
+    if m:
+        html = html[:m.end()] + css + html[m.end():]; changed = True
+
+if changed:
+    open(path, "w", encoding="utf-8").write(html)
+    print("    popup applied: " + os.path.relpath(path))
+PYEOF
+done
+
 echo ">>> Generating migration notes..."
 cat > "$MIGRATION_NOTES" << 'HEADER'
 # Migration Notes — Vale Indonesia Static Mirror
