@@ -62,6 +62,16 @@ HOME_HIGHLIGHT_COUNT = 6
 # news (blanket-tagged to every country), so it is deliberately excluded here — only the
 # local "Indonesia news"/"Indonesia ESG" tags reliably indicate local content.
 INDONESIA_CATS = {"Indonesia news", "Indonesia ESG"}
+# Ibu Sri's curated filter-chip allowlist (email 2026-09-02, "Option B" — her preferred).
+# ONLY these categories render as filter chips on the News listing (plus the "All"/"Semua"
+# chip which is always first). Articles keep ALL their data-categories so filtering still
+# works; this only trims the visible chip row from the bloated 21-tag global set down to the
+# Indonesia-relevant operational + ESG set. "IGP Sorlim" is on her list "jika ada" (if any) —
+# it is not present in the current data, so it is simply absent (no empty chip).
+FILTER_CHIP_ALLOWLIST = {
+    "IGP Morowali", "IGP Pomalaa", "IGP Sorlim",
+    "People", "Social", "Sustainability",
+}
 # Markers delimiting the empty carousel wrapper we inject slides into
 HOME_WRAPPER_OPEN = '<div class="swiper-carrosel'
 HOME_WRAPPER_INNER_OPEN = '<div class="swiper-wrapper">'
@@ -214,6 +224,14 @@ def _extract_chrome(src_path, lang_code, listing_url, article_url_pattern=None):
         raw = fh.read()
 
     mc_pos = raw.find(MAIN_CONTENT_MARKER)
+    if mc_pos < 0:
+        # Tolerate attribute-spacing variance between clone generations: some re-cloned
+        # chrome sources render `portlet-layout" id="main-content"` (space before id) vs the
+        # literal marker's `portlet-layout"id=...` (no space). Fall back to a regex that
+        # accepts optional whitespace before the id attribute.
+        m = re.search(r'<div class="layout-content portlet-layout"\s*id="main-content"', raw)
+        if m:
+            mc_pos = m.start()
     if mc_pos < 0:
         raise RuntimeError(f"Cannot find main-content marker in {src_path}")
 
@@ -470,9 +488,11 @@ def build_listing_page(records, lang, all_categories, dry_run=False):
     other_listing = "/in/indonesia/all-news.html" if lang == "en" else "/indonesia/all-news.html"
     header = _fix_lang_toggle(header, other_listing, "ID" if lang == "en" else "EN")
 
-    # Build filter buttons
+    # Build filter buttons — only Ibu Sri's allowlisted chips render (Option B, 2026-09-02).
     filter_btns = [f'<button class="news-filter-btn active" data-cat="all">{all_label}</button>']
     for cat in sorted(all_categories):
+        if cat not in FILTER_CHIP_ALLOWLIST:
+            continue
         safe = html_mod.escape(cat)
         filter_btns.append(f'<button class="news-filter-btn" data-cat="{safe}">{safe}</button>')
 

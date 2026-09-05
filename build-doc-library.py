@@ -94,6 +94,12 @@ def _extract_chrome(src_path, lang_code):
         raw = fh.read()
     mc_pos = raw.find(MAIN_CONTENT_MARKER)
     if mc_pos < 0:
+        # Re-cloned chrome sources render `portlet-layout" id="main-content"` (space
+        # before id=) vs the literal marker's no-space form. Tolerate both.
+        m = re.search(r'<div class="layout-content portlet-layout"\s*id="main-content"', raw)
+        if m:
+            mc_pos = m.start()
+    if mc_pos < 0:
         raise RuntimeError(f"Cannot find main-content marker in {src_path}")
     footer_pos = raw.find(FOOTER_MARKER)
     if footer_pos < 0:
@@ -125,24 +131,121 @@ def get_chrome(lang):
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
-def rec_date(rec):
-    """Best display date for a record: prefer datePublished, then modified, created."""
-    return rec.get("datePublished") or rec.get("dateModified") or rec.get("dateCreated") or ""
+_MONTHS = {
+    "january": 1, "februari": 2, "february": 2, "march": 3, "maret": 3, "april": 4,
+    "may": 5, "mei": 5, "june": 6, "juni": 6, "july": 7, "juli": 7, "august": 8,
+    "agustus": 8, "september": 9, "october": 10, "oktober": 10, "november": 11,
+    "december": 12, "desember": 12,
+}
+_ID_MONTH_NAMES = ["Januari", "Februari", "Maret", "April", "Mei", "Juni",
+                   "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+_EN_MONTH_NAMES = ["January", "February", "March", "April", "May", "June",
+                   "July", "August", "September", "October", "November", "December"]
 
 
-def fmt_date(iso, lang):
-    """Format an ISO8601 timestamp (2026-04-30T14:34:00Z) as a display date."""
+def parse_title_date(title):
+    """Extract the content period from a document title.
+
+    The Liferay clone/publish dates are mostly bulk-upload artifacts (e.g. 88 press
+    releases all dated "24 Februari 2026"), so the real chronology lives in the title
+    (report year, quarter, or an explicit date). Returns (year, quarter, month, day)
+    with quarter/month/day = None when absent, or None if no year could be found.
+    """
+    if not title:
+        return None
+    t = title
+    tl = t.lower()
+    y = q = m = d = None
+    # Quarter forms: 1Q22, 2Q26, 1q26, Q1 2024
+    mq = re.search(r"\b([1-4])q\s*([0-9]{2,4})\b", tl) or re.search(r"\bq([1-4])\s*([0-9]{4})\b", tl)
+    if mq:
+        q = int(mq.group(1))
+        yy = mq.group(2)
+        y = int(yy) if len(yy) == 4 else 2000 + int(yy)
+    # ISO date: 2025-10-29 or 2025-12
+    md_iso = re.search(r"\b(\d{4})-(\d{2})-(\d{2})\b", t) or re.search(r"\b(\d{4})-(\d{2})\b", t)
+    if md_iso:
+        g = md_iso.groups()
+        y = int(g[0]); m = int(g[1])
+        if len(g) > 2 and g[2]:
+            d = int(g[2])
+    # "31 March 2026" / "31 December 2024"
+    md_dmy = re.search(r"\b(\d{1,2})\s+([a-z]+)\s+(\d{4})\b", tl)
+    if md_dmy and md_dmy.group(2) in _MONTHS:
+        d = int(md_dmy.group(1)); m = _MONTHS[md_dmy.group(2)]; y = int(md_dmy.group(3))
+    # "December 2024"
+    md_my = re.search(r"\b([a-z]+)\s+(\d{4})\b", tl)
+    if y is None and md_my and md_my.group(1) in _MONTHS:
+        m = _MONTHS[md_my.group(1)]; y = int(md_my.group(2))
+    # Cumulative-month filing form: 3M23 / 6M23 / 9M23 / 12M23 (months-elapsed + 2-digit year)
+    md_nm = re.search(r"\b(3|6|9|12)m(\d{2})\b", tl)
+    if y is None and md_nm:
+        m = int(md_nm.group(1)); y = 2000 + int(md_nm.group(2))
+    # Plain 4-digit year (annual / sustainability reports) — take the last one mentioned
+    if y is None:
+        yrs = re.findall(r"\b(19[6-9]\d|20[0-4]\d)\b", t)
+        if yrs:
+            y = int(yrs[-1])
+    if y is None:
+        return None
+    return (y, q, m, d)
+
+
+def _iso_to_ymd(iso):
+    """('2026-04-30T..') -> (year, None, month, day). None if unparseable."""
     if not iso:
-        return ""
+        return None
     try:
         dt = datetime.strptime(iso[:10], "%Y-%m-%d")
+        return (dt.year, None, dt.month, dt.day)
     except ValueError:
-        return iso[:10]
-    if lang == "id":
-        months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni",
-                  "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
-        return f"{dt.day} {months[dt.month - 1]} {dt.year}"
-    return dt.strftime("%B %-d, %Y")
+        return None
+
+
+def canonical_ymd(rec):
+    """The most-sensible (year, quarter, month, day) for a record.
+
+    Priority: COMMs-supplied actual publish date (datePublishedActual, authoritative —
+    from the "Documents & reports" sitemap Excel, per COMMs 2026-09-03) → date embedded
+    in the title (real content period) → API datePublished → dateModified → dateCreated.
+    Returns None only if every source is empty.
+    """
+    return (_iso_to_ymd(rec.get("datePublishedActual"))
+            or parse_title_date(rec.get("title", ""))
+            or _iso_to_ymd(rec.get("datePublished"))
+            or _iso_to_ymd(rec.get("dateModified"))
+            or _iso_to_ymd(rec.get("dateCreated")))
+
+
+def sort_key(rec):
+    """Descending-chronology sort key. Missing components sort last within their year
+    (a bare-year report sorts after any dated item of the same year, which keeps e.g.
+    'Financial Statements 31 December 2025' above 'Laporan Tahunan 2025')."""
+    ymd = canonical_ymd(rec)
+    if not ymd:
+        return (0, 0, 0, 0)
+    y, q, m, d = ymd
+    # derive month from quarter if only quarter known (Q1->3, Q2->6, Q3->9, Q4->12)
+    mm = m if m else (q * 3 if q else 0)
+    return (y or 0, mm, d or 0, q or 0)
+
+
+def fmt_date(rec, lang):
+    """Display date from the canonical period. Shows the most specific form available:
+    full date if day known, "Month YYYY" if month known, "Qn YYYY" if only quarter,
+    else "YYYY"."""
+    ymd = canonical_ymd(rec)
+    if not ymd:
+        return ""
+    y, q, m, d = ymd
+    months = _ID_MONTH_NAMES if lang == "id" else _EN_MONTH_NAMES
+    if d and m:
+        return f"{d} {months[m - 1]} {y}" if lang == "id" else f"{months[m - 1]} {d}, {y}"
+    if m:
+        return f"{months[m - 1]} {y}"
+    if q:
+        return f"Q{q} {y}"
+    return str(y)
 
 
 def fmt_size(n):
@@ -179,19 +282,6 @@ FILTER_JS = """
       });
     });
   });
-  // Press-release language sub-filter: show/hide EN vs BH cards within its section
-  var langBtns = document.querySelectorAll('.doclib-langbtn');
-  langBtns.forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var lang = btn.getAttribute('data-lang');
-      langBtns.forEach(function (b) { b.classList.remove('active'); });
-      btn.classList.add('active');
-      var scope = btn.closest('.doclib-section');
-      scope.querySelectorAll('.doclib-card[data-lang]').forEach(function (card) {
-        card.style.display = (lang === 'all' || card.getAttribute('data-lang') === lang) ? '' : 'none';
-      });
-    });
-  });
 }());
 </script>
 """
@@ -216,7 +306,7 @@ STYLES = """
 .doclib-header { padding: 2rem 0 1rem; }
 .doclib-header p { color: #555; margin: 0; }
 .doclib-chipbar { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem; }
-.doclib-chip, .doclib-langbtn {
+.doclib-chip {
   display: inline-flex; align-items: center;
   padding: 0.4rem 1rem; border-radius: 1.5rem;
   border: 2px solid var(--verde-vale, #006633);
@@ -224,14 +314,11 @@ STYLES = """
   font-weight: 500; cursor: pointer; white-space: nowrap;
   text-decoration: none; font-size: 0.9rem;
 }
-.doclib-chip.active, .doclib-chip:hover,
-.doclib-langbtn.active, .doclib-langbtn:hover { background: var(--verde-vale, #006633); color: #fff; }
+.doclib-chip.active, .doclib-chip:hover { background: var(--verde-vale, #006633); color: #fff; }
 .doclib-section { margin-bottom: 1.75rem; }
 .doclib-section-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.8rem; border-bottom: 2px solid #e8f5ee; padding-bottom: 0.5rem; }
 .doclib-section-head h2 { font-size: 1.4rem; font-weight: 700; color: var(--verde-vale, #006633); margin: 0; }
 .doclib-section-count { font-size: 0.85rem; color: #888; }
-.doclib-langfilter { display: flex; gap: 0.4rem; margin-left: auto; }
-.doclib-langfilter .doclib-langbtn { padding: 0.25rem 0.8rem; font-size: 0.8rem; }
 .doclib-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 0.6rem; }
 .doclib-card {
   display: flex; align-items: flex-start; gap: 0.85rem;
@@ -242,8 +329,6 @@ STYLES = """
 .doclib-card-main { flex: 1; min-width: 0; }
 .doclib-card-title { font-weight: 600; font-size: 0.95rem; color: #222; line-height: 1.3; margin-bottom: 0.35rem; word-break: break-word; }
 .doclib-card-meta { font-size: 0.78rem; color: #777; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
-.doclib-lang-tag { font-size: 0.68rem; font-weight: 700; padding: 0.1rem 0.45rem; border-radius: 1rem; background: #006633; color: #fff; }
-.doclib-lang-tag.bh { background: #b8860b; }
 .doclib-card-dl {
   flex: 0 0 auto; align-self: center;
   display: inline-flex; align-items: center; gap: 0.35rem;
@@ -260,23 +345,14 @@ STYLES = """
 
 def render_card(rec, lang):
     title = html_mod.escape(rec.get("title", ""))
-    date_disp = html_mod.escape(fmt_date(rec_date(rec), lang))
+    date_disp = html_mod.escape(fmt_date(rec, lang))
     size_disp = html_mod.escape(fmt_size(rec.get("sizeBytes", 0)))
     link = html_mod.escape(rec.get("link", ""))
     dl_label = "Download" if lang == "en" else "Unduh"
 
-    lang_tag = ""
-    lang_attr = ""
-    if rec.get("lang"):
-        lg = rec["lang"]  # EN or BH (internal filter key)
-        disp = "IN" if lg == "BH" else lg  # human-visible: BH shows as "IN"
-        cls = "doclib-lang-tag bh" if lg == "BH" else "doclib-lang-tag"
-        lang_tag = f'<span class="{cls}">{disp}</span>'
-        lang_attr = f' data-lang="{lg}"'
-
+    # Language badge + per-card language filtering removed (COMMs 2026-09-03): bilingual
+    # press releases were duplicating; title alone now distinguishes language.
     meta_parts = []
-    if lang_tag:
-        meta_parts.append(lang_tag)
     if date_disp:
         meta_parts.append(f"<span>{date_disp}</span>")
     if size_disp:
@@ -284,7 +360,7 @@ def render_card(rec, lang):
     meta_html = "".join(meta_parts)
 
     return f"""\
-<div class="doclib-card"{lang_attr}>
+<div class="doclib-card">
   <div class="doclib-card-main">
     <div class="doclib-card-title">{title}</div>
     <div class="doclib-card-meta">{meta_html}</div>
@@ -298,29 +374,16 @@ def render_section(section, recs, lang):
     key = meta["key"]
     heading = section if lang == "en" else _id_section_heading(section)
 
-    # Sort newest-first
-    recs_sorted = sorted(recs, key=lambda r: rec_date(r), reverse=True)
+    # Sort newest-first by canonical (title-derived) chronology
+    recs_sorted = sorted(recs, key=sort_key, reverse=True)
     cards = "\n".join(render_card(r, lang) for r in recs_sorted)
 
-    # Press Releases gets an EN/BH language sub-filter
-    langfilter = ""
-    if section == PRESS_SECTION:
-        if lang == "en":
-            labels = [("all", "All"), ("EN", "English"), ("BH", "Indonesia")]
-        else:
-            labels = [("all", "Semua"), ("EN", "English"), ("BH", "Indonesia")]
-        btns = "".join(
-            f'<button class="doclib-langbtn{" active" if k == "all" else ""}" data-lang="{k}">{v}</button>'
-            for k, v in labels
-        )
-        langfilter = f'<div class="doclib-langfilter">{btns}</div>'
-
+    # Language sub-filter removed (COMMs 2026-09-03): title alone distinguishes language.
     return f"""\
 <section class="doclib-section" data-sec="{key}">
   <div class="doclib-section-head">
     <h2>{html_mod.escape(heading)}</h2>
     <span class="doclib-section-count">{len(recs_sorted)}</span>
-    {langfilter}
   </div>
   <div class="doclib-cards">
 {cards}
@@ -385,9 +448,16 @@ def build_page(records, lang):
     header = re.sub(r'<title>[^<]*</title>', f'<title>{page_title}</title>', header, count=1)
     header = _fix_lang_toggle(header, other_page, "ID" if lang == "en" else "EN")
 
-    # Group records by section
+    # Group records by section. Press Releases follow the page language toggle
+    # (COMMs 2026-09-03): EN page shows EN press releases, ID page shows Bahasa (BH)
+    # ones — no per-section language sub-filter, no cross-language duplicates. All other
+    # categories still show every document on both language pages.
+    page_pr_lang = "EN" if lang == "en" else "BH"
     by_section = {}
     for rec in records:
+        if rec["section"] == PRESS_SECTION and rec.get("lang") in ("EN", "BH") \
+                and rec.get("lang") != page_pr_lang:
+            continue
         by_section.setdefault(rec["section"], []).append(rec)
 
     # Filter chips (All + one per present section, in canonical order)

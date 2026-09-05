@@ -138,12 +138,44 @@ Once Front Door fronts the site, restrict the storage endpoint so the public rea
 
 - Front Door caching enabled; honor origin `Cache-Control` or set edge TTLs (e.g. long TTL for hashed static assets `/css /js /images`, short for HTML). Tune during go-live.
 
-### 5.4 Go-live exit criteria
+### 5.4 Clean URLs — extensionless-to-`.html` rewrite (optional, recommended)
+
+**Why:** the Azure storage static-website origin serves pages by literal blob name, so `/biodiversity`
+returns 404 while `/biodiversity.html` returns 200 (a known origin limitation — see §2). To let visitors
+use clean URLs (no `.html`), add a **URL-rewrite rule on the Front Door route**. This is the proper fix for
+the current architecture — it keeps the storage origin unchanged and rewrites at the edge; no file
+duplication, no migration to Azure Static Web Apps.
+
+**Rule (Front Door Rules Engine, associated to the `valeindonesia.com/*` route):**
+- **Condition:** request path does **NOT** already end in a file extension (i.e. the last path segment
+  has no dot) **AND** path is not `/` (root).
+- **Action:** URL rewrite → append `.html` to the origin path (`/{path}` → `/{path}.html`), preserve query string.
+
+**MUST NOT rewrite** (these already resolve; appending `.html` would break them):
+- Anything with an existing extension: `/documents/**/*.pdf|.png|.jpg|.svg`, `/o/**/*.css|.js`, `*.html`.
+- The root `/` (served by the `index.html` stub → redirect to `/indonesia.html`, per §4.3).
+
+**Test cases (verify after applying):**
+- `/in/indonesia/biodiversity` → 200, serves `biodiversity.html` (in-ID);
+- `/indonesia/biodiversity` → 200, en-US;
+- `/in/indonesia/biodiversity.html` → still 200 (explicit `.html` unaffected);
+- `/documents/.../file.pdf` → 200 (NOT rewritten to `.pdf.html`);
+- `/o/classic-theme/css/main.(...).css` → 200 (asset, not rewritten);
+- `/` → 200 stub → `/indonesia.html`.
+
+**Note:** internal `href`s in the mirror still point to `.html` and keep working — the rewrite only helps
+*inbound* extensionless requests; no HTML change required. Stripping `.html` from internal links (fully
+clean navigation) is a separate optional pass, not needed for clean inbound URLs. **This is a Phase-2 EY
+task** — a Rules Engine config on the Front Door profile; no storage/content change. (Raised by Feiry
+2026-09-02: dev staging currently requires `.html`; this is the production answer.)
+
+### 5.5 Go-live exit criteria
 
 - `https://valeindonesia.com/` serves the site with a valid managed cert (no TLS warning);
 - HTTP redirects to HTTPS;
 - WAF in Prevention mode, legitimate traffic unaffected;
 - Direct origin URL no longer serves content publicly (§5.2);
+- If the §5.4 clean-URL rule is applied: extensionless page URLs resolve, and asset/PDF/root URLs are unaffected (run the §5.4 test cases);
 - Spot-check EN/ID pages, a document download, and 404 behavior through the Front Door domain.
 
 ---
