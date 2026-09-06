@@ -64,6 +64,7 @@ SECTION_ORDER = [
     "Annual Reports",
     "Sustainability Reports",
     "Financial Statements",
+    "Quarterly Reports",
     "Presentation",
     "Press Releases & Announcements",
 ]
@@ -73,6 +74,7 @@ SECTION_META = {
     "Annual Reports":                 {"key": "annual",   "chip_en": "Annual Reports",   "chip_id": "Laporan Tahunan"},
     "Sustainability Reports":         {"key": "sustain",  "chip_en": "Sustainability",   "chip_id": "Keberlanjutan"},
     "Financial Statements":           {"key": "financial","chip_en": "Financial",        "chip_id": "Laporan Keuangan"},
+    "Quarterly Reports":              {"key": "quarterly","chip_en": "Quarterly Reports", "chip_id": "Laporan Kuartalan"},
     "Presentation":                   {"key": "present",  "chip_en": "Presentation",     "chip_id": "Presentasi"},
     "Press Releases & Announcements": {"key": "press",    "chip_en": "Press Releases",   "chip_id": "Siaran Pers"},
 }
@@ -396,6 +398,7 @@ def _id_section_heading(section):
         "Annual Reports": "Laporan Tahunan",
         "Sustainability Reports": "Laporan Keberlanjutan",
         "Financial Statements": "Laporan Keuangan",
+        "Quarterly Reports": "Laporan Kuartalan",
         "Presentation": "Presentasi",
         "Press Releases & Announcements": "Siaran Pers & Pengumuman",
     }[section]
@@ -448,14 +451,16 @@ def build_page(records, lang):
     header = re.sub(r'<title>[^<]*</title>', f'<title>{page_title}</title>', header, count=1)
     header = _fix_lang_toggle(header, other_page, "ID" if lang == "en" else "EN")
 
-    # Group records by section. Press Releases follow the page language toggle
-    # (COMMs 2026-09-03): EN page shows EN press releases, ID page shows Bahasa (BH)
-    # ones — no per-section language sub-filter, no cross-language duplicates. All other
+    # Group records by section. Press Releases AND Quarterly Reports follow the page
+    # language toggle (COMMs 2026-09-03): EN page shows EN docs, ID page shows Bahasa (BH)
+    # ones — no per-section language sub-filter, no cross-language duplicates. Both are
+    # bilingual on live with a 55/55 (Quarterly) and 65/59 (Press) EN/BH split. All other
     # categories still show every document on both language pages.
     page_pr_lang = "EN" if lang == "en" else "BH"
     by_section = {}
     for rec in records:
-        if rec["section"] == PRESS_SECTION and rec.get("lang") in ("EN", "BH") \
+        if rec["section"] in (PRESS_SECTION, "Quarterly Reports") \
+                and rec.get("lang") in ("EN", "BH") \
                 and rec.get("lang") != page_pr_lang:
             continue
         by_section.setdefault(rec["section"], []).append(rec)
