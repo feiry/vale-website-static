@@ -5,7 +5,7 @@ Operational steps for turning a COMMs request into a live change on
 (`docs/COMMS-how-to-request-website-update.md`).
 
 **Model:** COMMs authors → GDI reviews + deploys. Deploy to **dev first**, get a
-**COMMs-lead sign-off**, then deploy to **prod**. COMMs never touches Azure.
+**COMMs approver sign-off (Maman Ashari Hasan Tjokke)**, then deploy to **prod**. COMMs never touches Azure.
 
 **Environments**
 - Dev: storage account `stidstaticsite002`, endpoint `https://stidstaticsite002.z45.web.core.windows.net/`
@@ -140,7 +140,8 @@ curl -sI "https://stidstaticsite002.z45.web.core.windows.net/indonesia/w/<slug>.
 ```
 
 ### 6b. Sign-off gate
-Share the dev URL(s) with the COMMs lead. **Wait for approval** before prod.
+Share the dev URL(s) with the COMMs approver **Maman Ashari Hasan Tjokke**
+(maman.hasan@vale.com / maman.hasan@valeindonesia.com). **Wait for approval** before prod.
 
 ### 6c. Prod (GDI/expert only — PIM required)
 1. Azure Portal → PIM → activate **CUST-StaticWeb-Admin-Prod** + **Storage Blob Data Contributor**

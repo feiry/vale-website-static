@@ -106,7 +106,7 @@ everything they need to do it.
 
 1. GDI picks up your folder and moves it to `2-In-Progress/`.
 2. GDI builds it and puts it on the **preview (dev) site** first.
-3. GDI shares the preview link. **A COMMs lead checks and approves it.**
+3. GDI shares the preview link. **The COMMs approver (Maman Ashari Hasan Tjokke) checks and approves it.**
 4. After approval, GDI publishes it to the live site (**www.valeindonesia.com**).
 5. GDI moves your folder to `3-Done-Deployed/` with the live links and date.
 
