@@ -112,14 +112,16 @@ everything they need to do it.
 
 ## How long it takes (typical)
 
-| Request type            | Turnaround (once GDI starts) |
-|-------------------------|------------------------------|
-| News article            | 1–2 business days            |
-| Document                | 1–2 business days            |
-| Existing-page edit      | 2–3 business days            |
-| New page / re-clone     | Scheduled (larger effort)    |
+| Request type            | Turnaround (once GDI starts)        |
+|-------------------------|-------------------------------------|
+| News article            | 1 business day                      |
+| Document                | 1 business day                      |
+| Existing-page edit      | 1–2 business days                   |
+| New page / re-clone     | Scheduled — agreed case-by-case     |
 
-*(Confirm the exact turnaround with GDI — these are guidelines.)*
+*Turnaround starts when GDI picks up the request and assumes the approver
+(Maman Ashari Hasan Tjokke) signs off promptly on the dev preview. New pages
+and re-clones vary in effort, so GDI gives a target date per request.*
 
 ## Tips to avoid delays
 
