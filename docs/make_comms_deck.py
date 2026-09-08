@@ -170,13 +170,16 @@ txt(s, Inches(0.6), Inches(4.9), Inches(12), Inches(1.4),
       ("Page edits and new pages are done by GDI from your request.", 15, GREY, False)]])
 pagefoot(s, 4)
 
-# ═══ 5. HOW TO SUBMIT (SharePoint) ════════════════════════════════════
+# ═══ 5. HOW TO SUBMIT (shared folder) ═════════════════════════════════
 s = slide(); header(s, "How to submit a request")
-txt(s, Inches(0.6), Inches(1.4), Inches(12), Inches(0.5),
-    [[("Everything runs through one SharePoint area: ", 16, DARK, False),
+txt(s, Inches(0.6), Inches(1.4), Inches(12.4), Inches(0.5),
+    [[("Everything runs through one shared folder: ", 16, DARK, False),
       ("Website-Update-Requests", 16, TEAL, True)]])
+txt(s, Inches(0.6), Inches(1.9), Inches(12.4), Inches(0.4),
+    [[("A working folder shared between COMMs and GDI — in SharePoint, OneDrive, or "
+       "wherever both teams agree.", 12, GREY, True)]])
 # folder flow
-folders = [("_Templates", "Copy a template from here", GREY),
+folders = [("_Templates", "Open a form / guide from here", GREY),
            ("1-Submitted", "You drop your request folder here", TEAL),
            ("2-In-Progress", "GDI is working on it", YELLOW),
            ("3-Done-Deployed", "Live — with the links", TEAL_D)]
@@ -195,7 +198,7 @@ txt(s, Inches(0.7), Inches(5.9), Inches(12), Inches(1),
     [[("One folder per request, named  ", 13, GREY, False),
       ("YYYY-MM-DD_type_short-name", 13, TEAL, True),
       ("   (e.g. 2026-09-10_news_pkb-negotiation).", 13, GREY, False)],
-     [("Put the filled template + every image/PDF you reference inside that folder.", 13, GREY, False)]])
+     [("Put the saved form file (news-record.json / doc-record.json) + every image/PDF inside that folder.", 13, GREY, False)]])
 pagefoot(s, 5)
 
 # ═══ 6. NEW PAGE FROM EXISTING (the new capability) ═══════════════════
@@ -259,15 +262,15 @@ bullets(s, Inches(0.7), Inches(1.7), Inches(12), Inches(4.5),
      "News & Document Library — fully data-driven, easy to add to.",
      "First COMMs request done end-to-end: homepage domain-change popup (Maman Ashari Hasan Tjokke).",
      "Homepage scroll button + footer alignment fixed site-wide.",
-     "Request tools built: news converter + new-page content extract/inject.",
-     "SharePoint request folders + templates + guides ready to go."],
+     "Request tools built: visual news + document forms, new-page content extract/inject.",
+     "Shared request-folder package (forms + guides) ready to go."],
     size=16, gap=12)
 pagefoot(s, 8)
 
 # ═══ 9. NEXT STEPS ════════════════════════════════════════════════════
 s = slide(); header(s, "Next steps")
 bullets(s, Inches(0.7), Inches(1.7), Inches(12), Inches(3.5),
-    ["IT/GDI: create the SharePoint Website-Update-Requests area (package is ready to upload).",
+    ["IT/GDI: set up the shared Website-Update-Requests folder (SharePoint/OneDrive/wherever agreed — package is ready to upload).",
      "COMMs: try one real request end-to-end (a news item is easiest).",
      "Confirm the approver flow with Maman Ashari Hasan Tjokke on the first go-live.",
      "Share the how-to guide with the wider COMMs team."],
