@@ -91,7 +91,10 @@ body{padding-top:52px !important}
   <button onclick="gdiSave()">Save changes ⤓</button>
 </div>
 <div id="gdi-note">Click any highlighted text to edit it. Click a highlighted image to replace it.
-When done, click <b>Save changes</b> and send the downloaded file back to GDI.</div>
+When done, click <b>Save changes</b> and send the downloaded file back to GDI.<br>
+<span style="opacity:.75">Tip: if the file picker is stuck on “Loading…”, click a different folder
+(e.g. Downloads) in its sidebar, or cancel and click the image again — that’s a macOS
+quirk, not the editor.</span></div>
 <script>
 const GDI_META = __META__;              // {page, lang, count, type_sequence_sha, source_page_sha}
 const GDI_TYPES = __TYPES__;            // ordered list of editable types
@@ -117,8 +120,15 @@ function gdiInit(){
   gdiCount();
 }
 function gdiPickImage(el,i){
-  const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
+  // NOTE: no accept="image/*" filter — on macOS that filter can make the file dialog
+  // hang on "Loading…" while Finder builds image previews. We validate the extension
+  // ourselves after the user picks a file instead.
+  const inp=document.createElement('input'); inp.type='file';
   inp.onchange=()=>{ const f=inp.files[0]; if(!f)return;
+    if(!/\.(jpe?g|png|webp|gif|svg)$/i.test(f.name)){
+      alert('Please choose an image file (.jpg, .png, .webp, .gif, or .svg).\nYou chose: '+f.name);
+      return;
+    }
     gdiImgFiles[i]=f.name;
     const rd=new FileReader(); rd.onload=()=>{ el.src=rd.result; }; rd.readAsDataURL(f);
     el.setAttribute('data-gdi-changed','1'); gdiCount();
