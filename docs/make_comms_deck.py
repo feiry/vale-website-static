@@ -114,8 +114,9 @@ bullets(s, Inches(0.7), Inches(2.6), Inches(12), Inches(4),
      "COMMs owns the content; GDI/IT owns the technical build & publishing.",
      "This workflow gives everyone one clear path: request → review → approve → publish.",
      "No COMMs access to servers or code is needed — you author, GDI deploys.",
-     "Every change is previewed and signed off before it goes public."],
-    size=17, gap=12)
+     "Every change is previewed and signed off before it goes public.",
+     "This is a temporary solution — PTVI should prepare for the real (long-term) solution as soon as possible."],
+    size=16, gap=10)
 pagefoot(s, 2)
 
 # ═══ 3. THE MODEL (one line) ══════════════════════════════════════════
@@ -268,7 +269,7 @@ s = slide(); header(s, "Next steps")
 bullets(s, Inches(0.7), Inches(1.7), Inches(12), Inches(3.5),
     ["IT/GDI: create the SharePoint Website-Update-Requests area (package is ready to upload).",
      "COMMs: try one real request end-to-end (a news item is easiest).",
-     "Confirm the approver flow with Maman on the first go-live.",
+     "Confirm the approver flow with Maman Ashari Hasan Tjokke on the first go-live.",
      "Share the how-to guide with the wider COMMs team."],
     size=17, gap=14)
 rect(s, Inches(0.7), Inches(5.4), Inches(11.9), Inches(1.1), LIGHT)
