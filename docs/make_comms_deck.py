@@ -206,8 +206,8 @@ txt(s, Inches(0.6), Inches(1.4), Inches(12.2), Inches(0.8),
       (" — never the code.", 16, DARK, False)]])
 steps2 = [
     ("1", "You name the existing page you want to base it on."),
-    ("2", "GDI sends you back a simple content file (text + images) from that page."),
-    ("3", "You edit the words and swap images — nothing technical."),
+    ("2", "GDI sends you an editable page — double-click to open it in your browser."),
+    ("3", "Click text to type, click images to swap, then hit “Save changes”."),
     ("4", "GDI builds the new page with the correct layout and publishes it."),
 ]
 yy = Inches(2.5)
@@ -257,7 +257,7 @@ s = slide(); header(s, "Already delivered")
 bullets(s, Inches(0.7), Inches(1.7), Inches(12), Inches(4.5),
     ["Site live on www.valeindonesia.com (behind Azure Front Door + WAF, HTTPS).",
      "News & Document Library — fully data-driven, easy to add to.",
-     "First COMMs request done end-to-end: homepage domain-change popup (Tjokke).",
+     "First COMMs request done end-to-end: homepage domain-change popup (Maman Ashari Hasan Tjokke).",
      "Homepage scroll button + footer alignment fixed site-wide.",
      "Request tools built: news converter + new-page content extract/inject.",
      "SharePoint request folders + templates + guides ready to go."],
