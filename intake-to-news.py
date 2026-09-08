@@ -338,15 +338,80 @@ def check_slug_unique(slug, records):
             )
 
 
+def build_record_from_json(path):
+    """Build a validated record from the visual news editor's news-record.json.
+
+    The form already produced HTML bodies + a single `category` + a `cover_filename`,
+    so this mirrors build_record()'s validation without the Markdown conversion:
+    validate date + category, fold in baseline tags, sanitize slug, and map the
+    referenced image filenames to their on-disk destinations. Returns the same
+    (rec, image_registry, folder) tuple as build_record()."""
+    path = os.path.abspath(path)
+    folder = os.path.dirname(path)
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+
+    date = str(data.get("date", "")).strip()
+    if not DATE_RE.match(date):
+        raise IntakeError(f"date {date!r} is not in YYYY-MM-DD form.")
+
+    category = str(data.get("category", "")).strip()
+    if category not in FILTER_CHIP_ALLOWLIST:
+        raise IntakeError(
+            f"category {category!r} is not allowed. Pick ONE of: "
+            f"{', '.join(sorted(FILTER_CHIP_ALLOWLIST))}.")
+    categories = list(BASELINE_CATEGORIES)
+    if category not in categories:
+        categories.append(category)
+
+    if not (data.get("en") or data.get("id")):
+        raise IntakeError("no EN or ID content in the record.")
+    en_title = (data.get("en") or {}).get("title", "").strip()
+    id_title = (data.get("id") or {}).get("title", "").strip()
+
+    slug = sanitize_slug(data.get("slug") or en_title or id_title)
+    if not slug:
+        raise IntakeError("slug is empty after sanitization.")
+
+    image_registry = {}  # filename -> on-disk dest
+    cover = ""
+    cover_file = str(data.get("cover_filename", "")).strip()
+    if cover_file:
+        cover = f"/documents/44618/{slug}/{cover_file}"
+        image_registry[cover_file] = os.path.join(
+            "site", "vale.com", "documents", "44618", slug, cover_file)
+
+    rec = {"slug": slug, "date": date, "categories": categories, "cover": cover}
+    for lang in ("en", "id"):
+        blk = data.get(lang)
+        if blk and (blk.get("title") or blk.get("body")):
+            rec[lang] = {
+                "title": blk.get("title", "").strip(),
+                "subtitle": blk.get("subtitle", "").strip(),
+                "body": blk.get("body", ""),   # already HTML from the editor
+            }
+            # body <img> served-paths → the filenames the editor listed to attach.
+            for m in re.finditer(r'/documents/d/guest/([^"\']+)', blk.get("body", "")):
+                served = m.group(0)
+                # the editor names attachments by their ORIGINAL filename; we can't
+                # recover it from the served path, so we only verify by served name
+                # existing on disk at deploy — record the served path for the operator.
+                image_registry.setdefault("(body image) " + served, served)
+
+    return rec, image_registry, folder
+
+
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     dry_run = "--dry-run" in sys.argv
     if len(args) != 1:
-        print("usage: python3 intake-to-news.py path/to/request.md [--dry-run]", file=sys.stderr)
+        print("usage: python3 intake-to-news.py path/to/request.md|news-record.json [--dry-run]", file=sys.stderr)
         sys.exit(2)
 
+    is_json = args[0].lower().endswith(".json")
     try:
-        rec, image_registry, folder = build_record(args[0])
+        rec, image_registry, folder = (build_record_from_json(args[0]) if is_json
+                                       else build_record(args[0]))
 
         with open(DATA_FILE, encoding="utf-8") as fh:
             records = json.load(fh)
