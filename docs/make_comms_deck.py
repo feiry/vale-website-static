@@ -114,7 +114,7 @@ bullets(s, Inches(0.7), Inches(2.6), Inches(12), Inches(4),
      "COMMs owns the content; GDI/IT owns the technical build & publishing.",
      "This workflow gives everyone one clear path: request → review → approve → publish.",
      "No COMMs access to servers or code is needed — you author, GDI deploys.",
-     "Every change is previewed and signed off before it goes public.",
+     "Every change is previewed on the dev site and approved before it goes live.",
      "This is a temporary solution — PTVI should prepare for the real (long-term) solution as soon as possible."],
     size=16, gap=10)
 pagefoot(s, 2)
@@ -124,9 +124,9 @@ s = slide(); header(s, "The model in one line")
 box_y = Inches(2.6); bw = Inches(2.2); bh = Inches(1.6); gap = Inches(0.4)
 steps = [("COMMs", "authors the content", TEAL),
          ("GDI / IT", "converts & builds", TEAL),
-         ("Preview (dev)", "check it looks right", YELLOW),
-         ("Approver", "signs off", TEAL),
-         ("GDI / IT", "publishes to prod", TEAL_D)]
+         ("Dev preview", "review on the dev site", YELLOW),
+         ("Approver", "approves the preview", TEAL),
+         ("GDI / IT", "publishes to live", TEAL_D)]
 x = Inches(0.36)
 for i, (t, sub, col) in enumerate(steps):
     b = rect(s, x, box_y, bw, bh, col)
