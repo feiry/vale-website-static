@@ -4,6 +4,12 @@ Website Update Requests — PT Vale Indonesia static site
 This is where the COMMs team requests updates to www.valeindonesia.com.
 You author the content; GDI reviews and publishes it. You never need Azure access.
 
+WHERE THIS FOLDER LIVES
+  This is just a working folder shared between COMMs and GDI. Put it wherever both
+  teams agree — SharePoint, OneDrive, or a Teams file library. The steps below are
+  the same regardless of where it lives. (It is NOT connected to the website; it is
+  only the hand-off point for requests.)
+
 HOW IT WORKS
   1. Make a NEW folder inside 1-Submitted/.
      Name it:  YYYY-MM-DD_<type>_<short-name>
@@ -13,8 +19,8 @@ HOW IT WORKS
      (no code, no Markdown):
        • News      -> open _Templates/new-article.html, fill it, Save -> news-record.json
        • Document  -> open _Templates/new-document.html, fill it, Save -> doc-record.json
-       • New page  -> submit new-page-request.md; GDI sends editable page(s) you
-                      edit + Save on top of the real page in your browser
+       • New page  -> submit a short note (source page URL + new titles); GDI sends
+                      editable page(s) you edit + Save on top of the real page
        • Page edit -> describe the change in a short request.md (page URL, screenshot,
                       old wording -> new wording); attach any new images
      Put the saved file(s) PLUS every image/PDF you referenced into the SAME folder.

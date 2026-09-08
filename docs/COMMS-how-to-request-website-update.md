@@ -10,15 +10,20 @@ or any technical tools. You fill in a template, drop it in a folder, and GDI doe
 
 ## Where everything lives
 
-Everything goes through one SharePoint area:
+Everything goes through one shared **`Website-Update-Requests`** folder:
 
 ```
 Website-Update-Requests/
-├── _Templates/          ← blank templates + this guide. Copy from here.
+├── _Templates/          ← blank forms + this guide. Copy from here.
 ├── 1-Submitted/         ← put your finished request folder here
 ├── 2-In-Progress/       ← GDI moves it here while working on it
 └── 3-Done-Deployed/     ← GDI moves it here once it's live (with the live links)
 ```
+
+> **This is just a shared working folder** between COMMs and GDI — it lives wherever
+> both teams agree (SharePoint, OneDrive, or a Teams file library). It is *not* connected
+> to the website; it's only the hand-off point for requests. The steps are the same
+> wherever it lives.
 
 You only ever touch **`1-Submitted/`**. The folder your request sits in tells you its status.
 
@@ -36,9 +41,9 @@ YYYY-MM-DD_<type>_<short-name>/
 - example: `2026-09-10_news_pkb-negotiation/`
 
 Inside that folder put:
-1. Your filled-in request — either the saved **`news-record.json`** (news, from the
-   visual form), a saved **`.json`** from the page editor (new-page), or a filled
-   **`request.md`** template (documents, page-edits)
+1. Your filled-in request — the saved **`news-record.json`** (news form) or
+   **`doc-record.json`** (document form), a saved **`.json`** from the page editor
+   (new-page), or a short **`request.md`** note (page-edits)
 2. **Every image or PDF** you referenced, named exactly as you attached it
 
 Then move the whole folder into `1-Submitted/`.
@@ -115,10 +120,11 @@ For changing text, stats, photos, or contact details on a page that already exis
 **Easiest — a new page based on an existing one** (recommended when a current page
 already has the layout you want):
 
-1. Copy `_Templates/new-page-request.md` into a `…_new-page_…` folder as `request.md`.
-2. Fill in the **existing page's URL** (the layout to reuse) and your **new page titles**
-   (English + Indonesian). Move the folder to `1-Submitted/`.
-3. GDI sends you back **two editable pages** (English + Indonesian) — simple `.html` files.
+1. Create a `…_new-page_…` folder with a short note (`request.md` or plain text) giving:
+   - the **existing page's URL** (the layout you want to reuse), and
+   - your **new page titles** (English + Indonesian).
+   Move the folder to `1-Submitted/`.
+2. GDI sends you back **two editable pages** (English + Indonesian) — simple `.html` files.
    **Just double-click one to open it in your web browser.** You'll see the real page, exactly
    as it looks live. Then:
    - **Click any highlighted text** and type your new wording.
@@ -126,7 +132,7 @@ already has the layout you want):
    - When done, click **"Save changes"** at the top — it downloads a small file.
    Return those downloaded files (plus any new images) in the folder. No HTML, no code —
    you're editing right on top of the real page.
-4. GDI builds the new page with the correct layout and deploys it after approval.
+3. GDI builds the new page with the correct layout and deploys it after approval.
 
 **Brand-new page (no existing layout to copy):** create a `…_new-page_…` folder describing
 what you want, with the full content (both languages) + any images. This is hands-on work
