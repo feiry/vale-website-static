@@ -231,7 +231,7 @@ bullets(s, Inches(0.7), Inches(1.85), Inches(6), Inches(2.5),
     ["COMMs — writes content, supplies images, requests changes",
      "GDI / IT — converts, builds, previews, deploys",
      "Approver — Maman Ashari Hasan Tjokke",
-     ("maman.hasan@vale.com", 1),
+     ("maman.hasan@valeindonesia.com", 1),
      "Approver signs off on the dev preview before go-live"],
     size=14, gap=8)
 # SLA table
