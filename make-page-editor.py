@@ -53,6 +53,20 @@ def _strip_scripts(html):
 # The editor chrome (toolbar + logic) injected before </body>.
 EDITOR_JS_TEMPLATE = r"""
 <style>
+/* `.animacao-item.bg-branco` is a decorative full-size WHITE panel that the page's JS
+   animates away on scroll to reveal the content beneath it. With the JS stripped for
+   editing it just sits there as an opaque white cover, masking a whole section (looks
+   "empty"). It carries no editable content, so hide it in the editor. */
+.animacao-item.bg-branco{ display:none !important; }
+/* Reveal any other scroll-animation blocks that start hidden (opacity/transform), so
+   nothing is invisible in the editor. NARROW: does not touch Bootstrap d-none or
+   carousel .fade (avoids revealing hidden responsive twins / inactive slides). */
+[class*="animacao"]:not(.bg-branco){
+  opacity:1 !important; visibility:visible !important; transform:none !important;
+  animation:none !important; transition:none !important;
+}
+/* Editable elements themselves must always be visible so COMMs can edit them. */
+[data-gdi-edit]{ opacity:1 !important; visibility:visible !important; }
 #gdi-bar{position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#00533f;color:#fff;
   font-family:Calibri,Arial,sans-serif;padding:10px 16px;display:flex;align-items:center;gap:14px;
   box-shadow:0 2px 8px rgba(0,0,0,.3)}
