@@ -81,16 +81,23 @@ leave the other language's fields blank.
 
 ## 2. Add a document (report / statement / presentation / press release)
 
-1. Copy `_Templates/document-request.md` into your request folder as `request.md`.
+Like news, you use a **visual form** — no code. GDI sends you an editable
+`new-document.html`; double-click it to open it in your browser.
+
+1. Ask GDI for the **document form** (or grab `new-document.html` from `_Templates/`).
+   Double-click it — it opens in your browser as a normal fillable form.
 2. Fill it in:
-   - **section** — copy ONE of these exactly:
-     `Annual Reports`, `Sustainability Reports`, `Financial Statements`,
-     `Presentation`, `Press Releases & Announcements`.
-   - **title_en / title_id** — the title shown on the download card in each language.
-   - **date_published** — publication date (`YYYY-MM-DD`).
-   - **pdf_file** — the filename of the PDF you attached.
-3. Attach the PDF in the same folder.
-4. Move the folder to `1-Submitted/`.
+   - **Section** — pick ONE from the dropdown: `Annual Reports`, `Sustainability Reports`,
+     `Financial Statements`, `Quarterly Reports`, `Presentation`,
+     `Press Releases & Announcements`.
+   - **Document title** — the title shown on the download card, exactly as it should read.
+   - **Publish date** — the date picker (sort order within the section).
+   - **PDF file** — click *Choose File* and pick the PDF (this captures its exact name).
+   - **Language** — *only appears for Press Releases* (English or Indonesian). Every other
+     section is bilingual/NA, so you won't see this field.
+3. Click **"Save document ↓"** — it downloads a small `doc-record.json`.
+4. Put that file **plus the PDF** (named exactly as you selected it) into one request
+   folder, and move it to `1-Submitted/`.
 
 ## 3. Edit an existing page
 

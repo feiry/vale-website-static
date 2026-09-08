@@ -64,30 +64,36 @@ the older Markdown template — you don't hand-edit the JSON either way.
 
 ## 2. Document request
 
-1. **Place the PDF** on disk. Reuse the section's existing numeric folder id from a
-   sibling record in `site-data/documents.json` (e.g. Annual Reports = `1371772`,
-   Sustainability = `1373270`, Financial = `1374000`, Presentation = `8997207`,
-   Press Releases EN = `1438416` / BH = `1438419`):
+COMMs authors documents in a **visual form** (`make-doc-editor.py` → an HTML page they
+fill in a browser). Their submission is a **`doc-record.json`** (section, title,
+date_published, pdf_file, lang) plus the PDF. `intake-to-doc.py` validates it and derives
+all the plumbing — folder id, `link`, `fsPath`, `sizeBytes`, `id`, `description` — so you
+don't hand-edit `documents.json`.
+
+> To send COMMs a form: `python3 make-doc-editor.py -o new-document.html` — hand them the
+> file; they fill it and Save downloads `doc-record.json`.
+
+1. **Place the PDF** on disk first (so `sizeBytes` reads the real size). The destination
+   folder is the section's numeric id — the tool derives it, but for reference:
+   Annual Reports = `1371772`, Sustainability = `1373270`, Financial = `1374000`,
+   Presentation = `8997207`, Press Releases EN = `1438416` / BH = `1438419`.
+   **Quarterly Reports** has no single folder (one per batch) — reuse the sibling batch's
+   id and pass it with `--folder`. Spaces in the filename become `+` on disk:
    ```
-   site/vale.com/documents/44618/<folder>/<FileName>.pdf
+   site/vale.com/documents/44618/<folder>/<PDF+with+plus+for+spaces>.pdf
    ```
-2. **Add a record** to `site-data/documents.json` (docs are hand-added in v1 — flat,
-   low-risk). Required fields:
-   ```json
-   {
-     "section": "Annual Reports",           // EXACT string from SECTION_ORDER
-     "title": "PT Vale Indonesia Tbk - Annual Report 2026",
-     "fileName": "annual-report-2026.pdf",
-     "link": "/documents/44618/1371772/annual-report-2026.pdf",
-     "fsPath": "site/vale.com/documents/44618/1371772/annual-report-2026.pdf",
-     "sizeBytes": 6922597,                   // real size: `stat -f%z <file>`
-     "lang": null,                            // null | "en" | "id" (Press Releases split only)
-     "datePublishedActual": "2026-04-30"
-   }
+2. **Convert + validate + append the record** (never hand-edit the JSON):
+   ```bash
+   python3 intake-to-doc.py <request-folder>/doc-record.json --dry-run   # inspect first
+   python3 intake-to-doc.py <request-folder>/doc-record.json             # writes + backs up
+   # Quarterly Reports only:
+   python3 intake-to-doc.py <request-folder>/doc-record.json --folder <batch-id>
    ```
-   `section` MUST be one of the five `SECTION_ORDER` strings or the doc silently won't
-   render. Spaces in `link` are stored literally as `+` on disk but written as `%20`/`+`
-   consistently with siblings — copy an existing record's `link` form for the same folder.
+   The tool checks the section against `SECTION_ORDER`, requires EN/BH lang for Press
+   Releases, encodes `link`/`fsPath` (spaces → `+`), stamps real `sizeBytes` from the
+   staged PDF, assigns the next `id`, backs up `documents.json` to a timestamped `.bak-…`,
+   and self-checks the result re-parses. If the PDF isn't on disk yet it warns and writes
+   `sizeBytes: 0` — stage the PDF first, then run, for a correct card size.
 3. **Build:**
    ```bash
    python3 build-doc-library.py   # must exit 0

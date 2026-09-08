@@ -1,5 +1,14 @@
 ---
-# ── Document Library request ─────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════
+#  EASIEST WAY: use the VISUAL DOCUMENT FORM instead of this file.
+#  Ask GDI for "new-document.html" (or take it from _Templates/). Double-click
+#  it — it opens in your browser as a fillable form (section dropdown, title,
+#  date picker, PDF picker, and a language selector for press releases). Click
+#  "Save document" and it downloads a "doc-record.json"; send that file + the
+#  PDF back to GDI. This Markdown template still works as a fallback.
+# ══════════════════════════════════════════════════════════════════════
+#
+# ── Document Library request (fallback / plain-text) ─────────────────
 # Add a PDF (annual report, sustainability report, financial statement,
 # presentation, or press release) to the Document Library.
 # Drop this file (renamed request.md) plus the PDF into ONE folder in
