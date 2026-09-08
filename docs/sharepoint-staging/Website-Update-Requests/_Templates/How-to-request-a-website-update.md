@@ -88,17 +88,27 @@ For changing text, stats, photos, or contact details on a page that already exis
 2. Attach any new images.
 3. Move the folder to `1-Submitted/`.
 
-## 4. Request a new page (or refresh one from vale.com)
+## 4. Request a new page
 
-For a brand-new page, or copying an updated page from the main Vale site.
+**Easiest — a new page based on an existing one** (recommended when a current page
+already has the layout you want):
 
-1. Create a request folder (`…_new-page_…`) with a `request.md` that gives:
-   - the **source URL** on vale.com (if it's a refresh/copy), OR
-   - the full **content** for a brand-new page (both languages) plus any images.
-2. Move the folder to `1-Submitted/`.
+1. Copy `_Templates/new-page-request.md` into a `…_new-page_…` folder as `request.md`.
+2. Fill in the **existing page's URL** (the layout to reuse) and your **new page titles**
+   (English + Indonesian). Move the folder to `1-Submitted/`.
+3. GDI sends you back **two editable pages** (English + Indonesian) — simple `.html` files.
+   **Just double-click one to open it in your web browser.** You'll see the real page, exactly
+   as it looks live. Then:
+   - **Click any highlighted text** and type your new wording.
+   - **Click any highlighted image** and pick a replacement from your computer.
+   - When done, click **"Save changes"** at the top — it downloads a small file.
+   Return those downloaded files (plus any new images) in the folder. No HTML, no code —
+   you're editing right on top of the real page.
+4. GDI builds the new page with the correct layout and deploys it after approval.
 
-New pages and re-clones are hands-on work for GDI — the request just gives them
-everything they need to do it.
+**Brand-new page (no existing layout to copy):** create a `…_new-page_…` folder describing
+what you want, with the full content (both languages) + any images. This is hands-on work
+for GDI — the request gives them everything they need to build it.
 
 ---
 

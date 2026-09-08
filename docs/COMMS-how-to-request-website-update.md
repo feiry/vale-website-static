@@ -96,9 +96,14 @@ already has the layout you want):
 1. Copy `_Templates/new-page-request.md` into a `…_new-page_…` folder as `request.md`.
 2. Fill in the **existing page's URL** (the layout to reuse) and your **new page titles**
    (English + Indonesian). Move the folder to `1-Submitted/`.
-3. GDI sends you back **two simple content files** (English + Indonesian) pulled from that
-   page. You **edit only the text and images** — no HTML — and return them in the folder.
-   (To swap an image: attach the file and name it in the block. Don't add/remove sections.)
+3. GDI sends you back **two editable pages** (English + Indonesian) — simple `.html` files.
+   **Just double-click one to open it in your web browser.** You'll see the real page, exactly
+   as it looks live. Then:
+   - **Click any highlighted text** and type your new wording.
+   - **Click any highlighted image** and pick a replacement from your computer.
+   - When done, click **"Save changes"** at the top — it downloads a small file.
+   Return those downloaded files (plus any new images) in the folder. No HTML, no code —
+   you're editing right on top of the real page.
 4. GDI builds the new page with the correct layout and deploys it after approval.
 
 **Brand-new page (no existing layout to copy):** create a `…_new-page_…` folder describing
