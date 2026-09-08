@@ -95,9 +95,39 @@ def parse_content_file(text):
     return header, values
 
 
-def inject(content_path, source_path, out_path, image_folder=None):
+def parse_editor_json(text):
+    """Load the JSON produced by make-page-editor.py's Save button.
+    Shape: {"_meta": {...fingerprint...}, "values": {"<idx>": {"type","inner"|"new"}}}
+    Returns (header, values) matching parse_content_file's contract."""
+    import json
+    data = json.loads(text)
+    meta = data.get("_meta", {})
+    header = {
+        "editable_count": str(meta.get("count", -1)),
+        "type_sequence_sha": meta.get("type_sequence_sha", ""),
+        "source_page_sha": meta.get("source_page_sha", ""),
+    }
+    values = {}
+    for k, v in data.get("values", {}).items():
+        idx = int(k)
+        d = {}
+        if v.get("type") == "image":
+            if v.get("new"):
+                d["new"] = v["new"]
+            if "alt" in v:
+                d["alt"] = v["alt"]
+        else:
+            if "inner" in v:
+                d["inner"] = v["inner"]
+        if d:
+            values[idx] = d
+    return header, values
+
+
+def inject(content_path, source_path, out_path, image_folder=None, is_json=False):
     with open(content_path, encoding="utf-8") as fh:
-        header, values = parse_content_file(fh.read())
+        raw = fh.read()
+    header, values = (parse_editor_json(raw) if is_json else parse_content_file(raw))
     with open(source_path, encoding="utf-8") as fh:
         html = fh.read()
 
@@ -169,8 +199,10 @@ def main():
               file=sys.stderr)
         sys.exit(2)
     content_path, source_path = args
+    # A .json input (or --editor-json) is the visual-editor's Save output.
+    is_json = content_path.lower().endswith(".json") or "--editor-json" in sys.argv
     try:
-        reg, n = inject(content_path, source_path, out)
+        reg, n = inject(content_path, source_path, out, is_json=is_json)
     except (InjectError, PageStructureError) as e:
         print(f"ERROR: {e}", file=sys.stderr)
         sys.exit(1)

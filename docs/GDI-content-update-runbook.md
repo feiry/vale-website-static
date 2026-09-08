@@ -98,27 +98,40 @@ When COMMs wants a new page shaped like an existing one (request template
 `new-page-request.md`, `mode: from-existing`), use the page-content tools — COMMs
 never edits HTML, and the chrome/layout is preserved exactly.
 
-Round-trip (two hops with COMMs):
+### Preferred: give COMMs a VISUAL editor (they see the real page)
+
+COMMs edits on top of the actual styled page — no cryptic files, no HTML.
+
 1. Copy the source page locally as the base for each new twin:
    ```bash
    cp site/vale.com/indonesia/<source-en>.html      site/vale.com/indonesia/<new-en>.html
    cp site/vale.com/in/indonesia/<source-id>.html   site/vale.com/in/indonesia/<new-id>.html
    ```
-2. **Extract** the editable content of each twin and send both files back to COMMs:
+2. **Build a visual editor** for each twin and send the two `.html` files to COMMs:
    ```bash
-   python3 extract-page-content.py site/vale.com/indonesia/<source-en>.html   -o content-en.md
-   python3 extract-page-content.py site/vale.com/in/indonesia/<source-id>.html -o content-id.md
+   python3 make-page-editor.py site/vale.com/indonesia/<source-en>.html   -o content-en-editor.html --lang en
+   python3 make-page-editor.py site/vale.com/in/indonesia/<source-id>.html -o content-id-editor.html --lang id
    ```
-3. COMMs edits the VALUES in `content-en.md` + `content-id.md` (text, links, images);
-   they must not add/remove blocks. They attach any replacement images.
-4. **Inject** the edited content into the copied pages:
+   Each editor is a self-contained file: COMMs **double-clicks** it (needs internet — it
+   pulls the live site's CSS/images), sees the real page, clicks any highlighted heading/
+   paragraph to type over it, clicks any highlighted image to replace it, then clicks
+   **Save changes** → downloads `content-en.json` / `content-id.json`. They return those
+   (plus any new image files) in the request folder.
+3. **Inject** the saved JSON into the copied pages (inject auto-detects `.json`):
    ```bash
-   python3 inject-page-content.py content-en.md site/vale.com/indonesia/<new-en>.html   -o site/vale.com/indonesia/<new-en>.html
-   python3 inject-page-content.py content-id.md site/vale.com/in/indonesia/<new-id>.html -o site/vale.com/in/indonesia/<new-id>.html
+   python3 inject-page-content.py content-en.json site/vale.com/indonesia/<new-en>.html   -o site/vale.com/indonesia/<new-en>.html
+   python3 inject-page-content.py content-id.json site/vale.com/in/indonesia/<new-id>.html -o site/vale.com/in/indonesia/<new-id>.html
    ```
-   Inject verifies the content file's fingerprint against the page and ABORTS on any
-   mismatch (re-extract if the source changed). It prints an image-placement worklist —
-   copy each attached image to the printed `/documents/44618/<slug>/…` path.
+   Inject verifies the fingerprint (editable count + type sequence) and ABORTS on any
+   mismatch. It prints an image-placement worklist — copy each attached image to the
+   printed `/documents/44618/<slug>/…` path.
+
+### Fallback: the plain content file (`.md`)
+
+If a visual editor isn't practical, `extract-page-content.py <page> -o content-en.md`
+emits a plain text file COMMs edits (values between `«VAL»…«/VAL»`); inject the `.md`
+the same way. Same fingerprint/abort safety. (This is the engineer-facing form — prefer
+the visual editor for COMMs.)
 5. Wire the plumbing (still manual): add the new pair to `fix-lang-toggle.py`'s
    `ID_EN_TWINS` map + run it so the EN/ID pill points twin→twin; add the page to the
    nav menu if needed; run `SITE_DIR=site/vale.com ./postprocess-bilingual.sh` scoped to
