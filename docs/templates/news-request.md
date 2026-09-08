@@ -1,5 +1,15 @@
 ---
-# ── News article request ─────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════
+#  EASIEST WAY: use the VISUAL NEWS FORM instead of this file.
+#  Ask GDI for "new-article.html" (or take it from _Templates/). Double-click
+#  it — it opens in your browser as a fillable form (date picker, category
+#  dropdown, cover picker, and rich-text Title/Subtitle/Body for EN + ID with
+#  B / I / heading / list / link / image buttons). Click "Save article" and it
+#  downloads a "news-record.json"; send that file + your images back to GDI.
+#  This Markdown template still works as a fallback if you prefer typing.
+# ══════════════════════════════════════════════════════════════════════
+#
+# ── News article request (fallback / plain-text) ─────────────────────
 # Fill in every field below. Keep the `---` lines at the top and bottom of
 # this block. Drop this file (renamed request.md) plus every image you
 # reference into ONE folder in SharePoint > Website-Update-Requests > 1-Submitted.

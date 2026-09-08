@@ -36,8 +36,10 @@ YYYY-MM-DD_<type>_<short-name>/
 - example: `2026-09-10_news_pkb-negotiation/`
 
 Inside that folder put:
-1. The filled-in template, saved as **`request.md`**
-2. **Every image or PDF** you referenced, named exactly as you typed it
+1. Your filled-in request — either the saved **`news-record.json`** (news, from the
+   visual form), a saved **`.json`** from the page editor (new-page), or a filled
+   **`request.md`** template (documents, page-edits)
+2. **Every image or PDF** you referenced, named exactly as you attached it
 
 Then move the whole folder into `1-Submitted/`.
 
@@ -45,24 +47,37 @@ Then move the whole folder into `1-Submitted/`.
 
 ## 1. Publish a news article
 
-1. Copy `_Templates/news-request.md` into your new request folder as `request.md`.
+You write news in a **visual form** — no code, no Markdown. GDI sends you an editable
+`new-article.html` file; you double-click it to open it in your web browser and fill it in.
+
+1. Ask GDI for the **news article form** (or grab `new-article.html` from `_Templates/`).
+   Double-click it — it opens in your browser as a normal fillable form.
 2. Fill it in:
-   - **date** — the publish date (`YYYY-MM-DD`).
-   - **category** — pick ONE: `IGP Morowali`, `IGP Pomalaa`, `IGP Sorlim`, `People`,
-     `Social`, or `Sustainability`.
-   - **cover_image** — the filename of the cover photo you attached (or leave blank).
-   - **EN** and **ID** sections — title, subtitle, and body in each language.
-3. Writing the body — just write normally. You can use:
-   - `**bold**`, `*italic*`
-   - `[link text](https://…)` for links
-   - `##` for a subheading
-   - lines starting with `- ` for bullet points
-   - `[IMG: photo1.jpg]` on its own line to place a photo (and attach `photo1.jpg`)
-4. Attach the cover and every `[IMG:]` photo in the same folder.
-5. Move the folder to `1-Submitted/`.
+   - **Publish date** — pick from the date picker (controls newest-first sort order).
+   - **Category** — pick ONE from the dropdown (`IGP Morowali`, `IGP Pomalaa`,
+     `IGP Sorlim`, `People`, `Social`, `Sustainability`).
+   - **Cover image** — click *Choose File* and pick the cover photo (optional; blank
+     = default placeholder). You'll see a preview.
+   - **English** and **Bahasa Indonesia** sections — type the Title, Subtitle, and Body
+     in each language.
+3. Writing the body — just type. Use the buttons above the body box:
+   - **B** / **I** for bold / italic
+   - **Heading** for a subheading
+   - **• List** for bullet points
+   - **Link** to add a link
+   - **Image** to place a photo inline (it appears right in the box as you go)
+4. When done, click **"Save article ↓"** at the top — it downloads a small
+   `news-record.json` file.
+5. Put that downloaded file **plus every image you used** (cover + any inline photos,
+   named exactly as you attached them) into one request folder, and move it to
+   `1-Submitted/`.
 
 Both languages are normally required. If an article truly exists in only one language,
-delete the entire other `# EN` or `# ID` section.
+leave the other language's fields blank.
+
+> **Editing an existing article as a starting point?** Ask GDI to send you the form
+> *pre-filled from that article* — it opens with the current text and images already in
+> place, so you just tweak what changed.
 
 ## 2. Add a document (report / statement / presentation / press release)
 
