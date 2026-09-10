@@ -38,9 +38,11 @@ class RequestError(Exception):
 # ---------- helpers ----------
 
 def slugify(title, date_iso):
-    """<YYYYMMDD>_<slug> matching existing convention (lowercase, hyphen, & removed)."""
+    """<YYYYMMDD>_<slug> matching existing convention (lowercase, hyphen, & removed).
+    Uses the cleaned title (any typed 'Job vacancy for' prefix stripped) so the slug /
+    PDF filename stays tidy."""
     ymd = date_iso.replace("-", "")
-    s = title.lower()
+    s = clean_title(title).lower()
     s = s.replace("&", " ")
     s = re.sub(r"[^a-z0-9]+", "-", s).strip("-")
     return f"{ymd}_{s}"
