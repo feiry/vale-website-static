@@ -190,6 +190,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("request", help="vacancies.json")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--regen-form", default="vacancy-manager.html",
+                    help="after a successful apply, regenerate the COMMs form here so "
+                         "it reflects the new vacancy list (default: vacancy-manager.html; "
+                         "pass '' to skip)")
     args = ap.parse_args()
 
     folder = os.path.dirname(os.path.abspath(args.request))
@@ -281,6 +285,21 @@ def main():
         sys.exit(1)
 
     print(f"\nWritten. Backups: " + ", ".join(backups.values()))
+
+    # Regenerate the COMMs form so an up-to-date vacancy-manager.html always exists
+    # on disk (the form is a snapshot; after an apply the old one is stale).
+    form_out = args.regen_form
+    if form_out:
+        import subprocess
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              "make-vacancy-manager.py")
+        r = subprocess.run([sys.executable, script, "-o", form_out],
+                           capture_output=True, text=True)
+        if r.returncode == 0:
+            print(f"Regenerated form: {form_out}")
+        else:
+            print(f"  WARN: form regen failed (non-fatal): {r.stderr.strip()[:120]}")
+
     print("Next: place PDFs (worklist above), then deploy career.html + PDFs to dev.")
 
 
