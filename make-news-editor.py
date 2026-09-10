@@ -137,12 +137,22 @@ function rtCmd(id,cmd,val){ document.getElementById(id).focus(); document.execCo
 function rtLink(id){ const u=prompt('Link URL (https://… or /indonesia/…):'); if(u) rtCmd(id,'createLink',u); }
 function rtHeading(id){ rtCmd(id,'formatBlock','H2'); }
 function rtImage(id){
+  const el=document.getElementById(id);
+  // Save the caret/selection NOW: opening the file picker (async) drops focus, and
+  // without this the image lands in the wrong body (usually EN) or at the top.
+  el.focus();
+  const sel=window.getSelection();
+  let savedRange=(sel && sel.rangeCount && el.contains(sel.anchorNode))
+    ? sel.getRangeAt(0).cloneRange() : null;
   const inp=document.createElement('input'); inp.type='file';
   inp.onchange=()=>{ const f=inp.files[0]; if(!f) return;
     if(!/\.(jpe?g|png|webp|gif)$/i.test(f.name)){ alert('Please choose an image file.'); return; }
     const rd=new FileReader(); rd.onload=()=>{
       // embed preview; mark with the real filename so GDI knows what to attach
-      const el=document.getElementById(id); el.focus();
+      el.focus();
+      const s=window.getSelection(); s.removeAllRanges();
+      if(savedRange){ s.addRange(savedRange); }
+      else { const r=document.createRange(); r.selectNodeContents(el); r.collapse(false); s.addRange(r); }
       document.execCommand('insertHTML',false,
         '<img src="'+rd.result+'" data-filename="'+f.name+'">');
       imgFiles[f.name]=true;
