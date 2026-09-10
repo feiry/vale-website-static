@@ -8,13 +8,23 @@ source of truth): `vacancy_common.py`, `make-vacancy-manager.py`, `intake-to-vac
 
 ## The flow
 
-1. **Generate the form for COMMs** (only needed to reflect the current live list):
+1. **Generate the form FRESH for each request** (⚠️ do NOT reuse an old copy):
    ```
    python3 make-vacancy-manager.py -o vacancy-manager.html
    ```
-   Send `vacancy-manager.html` to COMMs. They **double-click** it, tick expired
-   vacancies to Remove, fill an Add row per new vacancy (Title EN, Title ID, Date,
-   PDF filename), click **Save** → it downloads `vacancies.json`.
+   The form bakes in the **currently-visible** vacancies at generation time (a
+   snapshot — a double-clicked `file://` form cannot fetch the live site because
+   valeindonesia.com sends no CORS header). The form carries a "live as of <date>"
+   banner so COMMs can spot a stale copy. Because it's a snapshot, **regenerate it
+   right before sending to COMMs** so it reflects what's actually live.
+
+   Send `vacancy-manager.html` to COMMs (they have no access to the local repo).
+   They **double-click** it, tick expired vacancies to Remove, fill an Add row per
+   new vacancy (Title EN, Title ID, Date, PDF filename), click **Save** → it
+   downloads `vacancies.json`.
+
+   The form lists ONLY the visible "Recent opportunities" vacancies (currently 2) —
+   not the 9 hidden/archived text slots — so COMMs sees exactly what a visitor sees.
 
 2. **COMMs delivers** `vacancies.json` **plus the referenced PDF(s)** in one request
    folder (SharePoint drop, per the COMMs workflow). ⚠️ PDFs must be in that folder —

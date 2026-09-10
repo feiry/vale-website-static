@@ -15,7 +15,7 @@ The generated form is intentionally simple: it never exposes UUIDs or slot marku
 COMMs drops the actual PDF into the request folder alongside the saved JSON.
 """
 
-import sys, os, re, json, argparse, html as htmllib
+import sys, os, re, json, argparse, html as htmllib, datetime
 import vacancy_common as vc
 
 EN_PAGE = "site/vale.com/indonesia/career.html"
@@ -62,6 +62,9 @@ TEMPLATE = """<!doctype html>
 </style></head><body>
 <header><h1>Job Vacancy Manager — valeindonesia.com/career</h1></header>
 <main>
+ <p class="note" style="background:#fff8e1;border:1px solid #e6b400;padding:8px 10px;border-radius:4px">
+   This form shows the vacancies live on the site <b>as of {generated}</b>. If it looks
+   out of date, ask GDI to send a fresh copy before editing.</p>
  <h2>1. Current vacancies</h2>
  <p class="note">Tick <b>Remove</b> for any vacancy that has expired.</p>
  <table id="cur"><thead><tr><th style="width:60px">Remove</th><th>Vacancy</th></tr></thead>
@@ -134,7 +137,9 @@ def main():
         print(f"ERROR: {EN_PAGE} not found (run from repo root)", file=sys.stderr)
         sys.exit(1)
     rows, sig = current_rows()
-    out = TEMPLATE.format(rows_json=json.dumps(rows), sig_json=json.dumps(sig))
+    generated = datetime.date.today().isoformat()
+    out = TEMPLATE.format(rows_json=json.dumps(rows), sig_json=json.dumps(sig),
+                          generated=generated)
     with open(args.out, "w", encoding="utf-8") as f:
         f.write(out)
     print(f"Wrote {args.out} ({len(rows)} current vacancies, sig={sig}).")
