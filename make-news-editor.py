@@ -68,6 +68,8 @@ body{margin:0;font-family:Calibri,-apple-system,Arial,sans-serif;color:#222;back
 label{display:block;font-weight:bold;font-size:13px;color:var(--teald);margin:14px 0 5px}
 input[type=text],input[type=date],select{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:6px;font-size:15px;font-family:inherit}
 .hint{font-size:12px;color:var(--grey);margin-top:3px}
+.cat-checks{display:flex;flex-wrap:wrap;gap:6px 16px}
+.cat-check{font-weight:400;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 h2.sec{margin:0 0 4px;color:var(--teald)}
 .langtag{display:inline-block;background:var(--teal);color:#fff;font-size:12px;font-weight:bold;padding:3px 10px;border-radius:4px;margin-bottom:6px}
 .rt-toolbar{display:flex;gap:4px;margin:5px 0;flex-wrap:wrap}
@@ -96,9 +98,9 @@ h2.sec{margin:0 0 4px;color:var(--teald)}
         <div class="hint">Controls sort order (newest first).</div>
       </div>
       <div class="col">
-        <label>Category</label>
-        <select id="category"></select>
-        <div class="hint">Pick the one operational / ESG area this story belongs to.</div>
+        <label>Categories</label>
+        <div id="category" class="cat-checks"></div>
+        <div class="hint">Tick every operational / ESG area this story belongs to (one or more). "Indonesia" + "Indonesia news" are added automatically.</div>
       </div>
     </div>
     <label>Cover image</label>
@@ -128,9 +130,15 @@ const PREFILL = __PREFILL__;   // record or null
 const imgFiles = {};           // objectURL/dataURL bookkeeping -> filename to attach
 let imgSeq = 0;
 
-// populate category dropdown
+// populate category checkboxes (multi-select — an article can have several)
 const sel=document.getElementById('category');
-CATEGORIES.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
+CATEGORIES.forEach(c=>{
+  const lab=document.createElement('label'); lab.className='cat-check';
+  const cb=document.createElement('input'); cb.type='checkbox'; cb.value=c; cb.className='catbox';
+  lab.appendChild(cb); lab.appendChild(document.createTextNode(' '+c));
+  sel.appendChild(lab);
+});
+function selectedCategories(){ return [...document.querySelectorAll('.catbox:checked')].map(c=>c.value); }
 
 // rich-text helpers
 function rtCmd(id,cmd,val){ document.getElementById(id).focus(); document.execCommand(cmd,false,val||null); }
@@ -192,7 +200,7 @@ function saveArticle(){
   const en_title=document.getElementById('en_title').value.trim();
   const id_title=document.getElementById('id_title').value.trim();
   const date=document.getElementById('date').value.trim();
-  const category=document.getElementById('category').value;
+  const categories=selectedCategories();
   if(!date){ alert('Please set the publish date.'); return; }
   if(!en_title && !id_title){ alert('Please enter at least one title.'); return; }
   const slug = (PREFILL&&PREFILL.slug) ? PREFILL.slug : slugify(en_title||id_title);
@@ -202,7 +210,7 @@ function saveArticle(){
   const attachAll=[...new Set([...enBody.images, ...idBody.images, ...(window.__coverName?[window.__coverName]:[])])];
 
   const rec={
-    slug, date, category,           // intake will fold baseline tags + validate category
+    slug, date, categories,         // intake folds baseline tags + validates each
     cover_filename: window.__coverName || "",
     en:{ title:en_title, subtitle:document.getElementById('en_subtitle').value.trim(), body:enBody.html },
     id:{ title:id_title, subtitle:document.getElementById('id_subtitle').value.trim(), body:idBody.html }
@@ -222,9 +230,9 @@ function saveArticle(){
 (function prefill(){
   if(!PREFILL) { document.getElementById('date').value=""; return; }
   document.getElementById('date').value=PREFILL.date||"";
-  // pick the operational category (first allow-listed one on the record)
-  const cat=(PREFILL.categories||[]).find(c=>CATEGORIES.includes(c));
-  if(cat) document.getElementById('category').value=cat;
+  // tick every allow-listed category present on the record
+  const pre=(PREFILL.categories||[]).filter(c=>CATEGORIES.includes(c));
+  document.querySelectorAll('.catbox').forEach(cb=>{ cb.checked=pre.includes(cb.value); });
   ['en','id'].forEach(l=>{ if(PREFILL[l]){
     document.getElementById(l+'_title').value=PREFILL[l].title||"";
     document.getElementById(l+'_subtitle').value=PREFILL[l].subtitle||"";

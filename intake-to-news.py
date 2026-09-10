@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """intake-to-news.py — convert a COMMs news request into a validated news record.
 
-Turns a filled Markdown + front-matter request (see docs/templates/news-request.md)
-into a JSON record and appends it to site-data/news-indonesia.json, which build-news.py
-then renders into the EN + ID listings and article pages.
+Primary input is the `news-record.json` saved by the visual news form
+(make-news-editor.py). A `.md` front-matter request is also accepted as a legacy
+path. Either way it produces a JSON record appended to site-data/news-indonesia.json,
+which build-news.py then renders into the EN + ID listings and article pages.
 
 This script NEVER deploys. It only validates and mutates the data file, self-checking
 that the result still parses so it can never hand build-news.py a file that aborts the
@@ -50,6 +51,30 @@ DATA_FILE = _bn.DATA_FILE
 # existing data set). COMMs picks ONE operational/ESG chip; GDI/this tool adds these.
 BASELINE_CATEGORIES = ["Indonesia", "Indonesia news"]
 
+
+def resolve_categories(raw):
+    """Normalize a category input into the final list (baseline + validated picks).
+
+    Accepts `categories` (list, from the visual form's multi-select), a comma-separated
+    string, or a single `category` string (legacy / markdown). One OR MORE picks
+    allowed; empty is allowed (baseline tags only). Raises IntakeError on any pick not
+    in the allowlist.
+    """
+    if isinstance(raw, str):
+        raw = [c.strip() for c in raw.split(",") if c.strip()]
+    picked = [str(c).strip() for c in (raw or []) if str(c).strip()]
+    bad = [c for c in picked if c not in FILTER_CHIP_ALLOWLIST]
+    if bad:
+        raise IntakeError(
+            f"category {bad!r} not allowed. Choose from: "
+            f"{', '.join(sorted(FILTER_CHIP_ALLOWLIST))}."
+        )
+    categories = list(BASELINE_CATEGORIES)
+    for c in picked:
+        if c not in categories:
+            categories.append(c)
+    return categories
+
 # Body images are served extensionless under this prefix (fetch-body-images.py convention).
 BODY_IMAGE_PREFIX = "/documents/d/guest/"
 
@@ -71,8 +96,8 @@ def _split_front_matter(text):
     m = re.match(r"^﻿?---\s*\n(.*?)\n---\s*\n(.*)$", text, re.DOTALL)
     if not m:
         raise IntakeError(
-            "Missing front-matter. The file must start with a `---` block "
-            "(see docs/templates/news-request.md)."
+            "Missing front-matter. A .md request must start with a `---` block "
+            "(or use the news form's news-record.json instead)."
         )
     fm_block, body = m.group(1), m.group(2)
     fm = {}
@@ -264,16 +289,8 @@ def build_record(request_path):
     if not DATE_RE.match(date):
         raise IntakeError(f"date {date!r} is not in YYYY-MM-DD form.")
 
-    # Category (single chip from the allowlist; baseline tags added automatically).
-    category = fm.get("category", "").strip()
-    if category not in FILTER_CHIP_ALLOWLIST:
-        raise IntakeError(
-            f"category {category!r} is not allowed. Pick ONE of: "
-            f"{', '.join(sorted(FILTER_CHIP_ALLOWLIST))}."
-        )
-    categories = list(BASELINE_CATEGORIES)
-    if category not in categories:
-        categories.append(category)
+    # Categories — one or more chips from the allowlist; baseline tags added automatically.
+    categories = resolve_categories(fm.get("categories", fm.get("category", [])))
 
     # Language sections.
     langs = _parse_lang_sections(body)
@@ -355,14 +372,8 @@ def build_record_from_json(path):
     if not DATE_RE.match(date):
         raise IntakeError(f"date {date!r} is not in YYYY-MM-DD form.")
 
-    category = str(data.get("category", "")).strip()
-    if category not in FILTER_CHIP_ALLOWLIST:
-        raise IntakeError(
-            f"category {category!r} is not allowed. Pick ONE of: "
-            f"{', '.join(sorted(FILTER_CHIP_ALLOWLIST))}.")
-    categories = list(BASELINE_CATEGORIES)
-    if category not in categories:
-        categories.append(category)
+    # Categories — form sends `categories` (list); accept legacy single `category` too.
+    categories = resolve_categories(data.get("categories", data.get("category", [])))
 
     if not (data.get("en") or data.get("id")):
         raise IntakeError("no EN or ID content in the record.")
