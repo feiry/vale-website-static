@@ -30,8 +30,11 @@ def strip_label(label_html):
 
 
 def current_rows():
+    """Only the VISIBLE 'Recent opportunities' vacancies — the ones a site visitor
+    actually sees. Hidden/archived slots (per-UUID display:none) are excluded so COMMs
+    isn't confused by dead entries."""
     h = open(EN_PAGE, encoding="utf-8", errors="replace").read()
-    vacs = vc.scan_vacancies(h)
+    vacs = vc.visible_vacancies(h)
     sig = vc.type_sequence_sha(h)
     rows = [{"slug": v["slug"], "text": strip_label(v["label"])} for v in vacs]
     return rows, sig

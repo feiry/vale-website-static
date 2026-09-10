@@ -100,8 +100,12 @@ def validate(req, folder):
 
 
 def match_removals(html, removals):
-    """Return list of (removal, descriptor) with exactly-one-match enforcement."""
-    vacs = vc.scan_vacancies(html)
+    """Return list of (removal, descriptor) with exactly-one-match enforcement.
+
+    Matches only VISIBLE vacancies — the form lets COMMs remove from the visible
+    'Recent opportunities' list, and scoping here prevents a match accidentally
+    hitting a hidden/archived slot with a similar label."""
+    vacs = vc.visible_vacancies(html)
     hits = []
     for r in removals:
         m = [v for v in vacs if r["match"] in v["label"] or r["match"] in v["slug"]]

@@ -32,8 +32,39 @@ only *reads*; it exposes has_inline_fontsize so callers can reason about it.
 
 import re
 import hashlib
+import glob
+import os
 
 SLOT_OPEN = '<div class="lfr-layout-structure-item-basic-component-paragraph'
+
+# The career page's per-slot styling (font-size, and crucially display:none for
+# archived/hidden slots) lives in per-UUID rules in this external layout stylesheet.
+# A vacancy is VISIBLE ("Recent opportunities") iff its UUID rule has no display:none.
+_CAREER_LAYOUT_CSS_GLOB = "site/vale.com/o/layout-common-styles/main.css@plid=2967*"
+
+
+def _load_layout_css():
+    """Concatenate the career layout CSS file(s). Returns '' if none found (callers
+    then treat every slot as visible — safe default for non-career pages/tests)."""
+    parts = []
+    for f in sorted(glob.glob(_CAREER_LAYOUT_CSS_GLOB)):
+        try:
+            parts.append(open(f, encoding="utf-8", errors="replace").read())
+        except OSError:
+            pass
+    return "\n".join(parts)
+
+
+def hidden_uuids(css=None):
+    """Set of layout-item UUIDs whose CSS rule contains `display: none`."""
+    if css is None:
+        css = _load_layout_css()
+    hidden = set()
+    for m in re.finditer(
+            r'\.lfr-layout-structure-item-([0-9a-fA-F-]{36})\s*\{([^}]*)\}', css):
+        if 'display' in m.group(2) and 'none' in m.group(2):
+            hidden.add(m.group(1))
+    return hidden
 # a vacancy link inside a slot
 _VAC_A_RE = re.compile(
     r'<a href="(?P<href>/documents/d/guest/(?P<slug>[^"]+))"[^>]*>\s*'
@@ -62,7 +93,7 @@ def _slot_span(html, inner_pos):
     raise CareerStructureError("unterminated vacancy slot div")
 
 
-def scan_vacancies(html):
+def scan_vacancies(html, css=None):
     """Return an ordered list of vacancy descriptors as they appear in the page.
 
     Each descriptor:
@@ -72,25 +103,36 @@ def scan_vacancies(html):
         "uuid":  <layout-item uuid>,
         "frag":  <fragment id>,
         "span":  (start, end),      # full slot div byte span
-        "has_inline_fontsize": bool # slot carries an inline font-size style
+        "has_inline_fontsize": bool,# slot carries an inline font-size style
+        "visible": bool             # shown in "Recent opportunities" (no display:none
+                                    # per-UUID rule). Hidden ones are archived/dead.
       }
+    Pass css="" to force every slot visible (e.g. tests / non-career pages).
     """
+    hidden = hidden_uuids(css)
     out = []
     for m in _VAC_A_RE.finditer(html):
         span = _slot_span(html, m.start())
         slot_html = html[span[0]:span[1]]
         um = _UUID_RE.search(slot_html)
         fm = _FRAG_RE.search(slot_html)
+        uuid = um.group("uuid") if um else None
         out.append({
             "slug": m.group("slug"),
             "href": m.group("href"),
             "label": m.group("label").strip(),
-            "uuid": um.group("uuid") if um else None,
+            "uuid": uuid,
             "frag": fm.group("frag") if fm else None,
             "span": span,
             "has_inline_fontsize": bool(_INLINE_FS_RE.search(slot_html)),
+            "visible": uuid not in hidden if uuid else True,
         })
     return out
+
+
+def visible_vacancies(html, css=None):
+    """Only the vacancies shown in 'Recent opportunities' (not archived/hidden)."""
+    return [v for v in scan_vacancies(html, css) if v["visible"]]
 
 
 def recent_list_insertion_point(html):
