@@ -51,8 +51,18 @@ def fmt_date(date_iso, lang):
     return f"{m}/{d}/{y}" if lang == "en" else f"{d}/{m}/{y}"
 
 
+# Strip a prefix COMMs may have typed into the title (the script adds its own), so the
+# label never doubles ("Job vacancy for Job vacancy for Janitor"). Case-insensitive.
+_TITLE_PREFIX_RE = re.compile(
+    r'^\s*(?:job\s+vacanc(?:y|ies)\s+for|lowongan\s+kerja\s+untuk)\s*[:\-]?\s*', re.I)
+
+
+def clean_title(title):
+    return _TITLE_PREFIX_RE.sub("", title).strip()
+
+
 def label_html(date_iso, title, lang):
-    esc = title.replace("&", "&amp;")
+    esc = clean_title(title).replace("&", "&amp;")
     if lang == "en":
         return f"&gt; {fmt_date(date_iso,'en')} - Job vacancy for {esc}"
     return f"&gt;{fmt_date(date_iso,'id')} - Lowongan Kerja untuk {esc}"
