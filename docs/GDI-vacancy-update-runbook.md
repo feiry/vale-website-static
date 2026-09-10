@@ -62,6 +62,26 @@ source of truth): `vacancy_common.py`, `make-vacancy-manager.py`, `intake-to-vac
    to `stidstaticsiteprod` (PIM active: activate roles + `rm ~/.azure/msal_token_cache.json`
    + `az login`). Verify on www.valeindonesia.com.
 
+## Undoing a local apply — `rollback-vacancy.py`
+
+Every `intake-to-vacancy.py` apply writes a `<page>.bak-<timestamp>` next to each
+career page. To undo the last apply (e.g. wrong title, applied the stale JSON), use:
+
+```
+python3 rollback-vacancy.py --dry-run          # preview
+python3 rollback-vacancy.py                     # restore both pages from newest backup
+python3 rollback-vacancy.py --remove-pdf <slug> # also delete a placed PDF
+python3 rollback-vacancy.py --keep-backups      # restore but leave .bak files
+```
+
+It restores both pages from their most-recent `.bak-<ts>`, then (by default) removes
+the `.bak` files. `--remove-pdf <slug>` (repeatable) also deletes
+`site/vale.com/documents/d/guest/<slug>`. This only undoes the **local** files — if you
+already deployed, re-deploy the restored pages (and delete the blob if the PDF shipped).
+
+Typical fix-a-mistake loop: `rollback-vacancy.py --remove-pdf <slug>` → correct the
+form/JSON → re-run `intake-to-vacancy.py` → place PDF → redeploy.
+
 ## Why the script exists (the gotcha it encodes)
 
 Each vacancy slot renders at **20px** because of a per-UUID CSS rule
