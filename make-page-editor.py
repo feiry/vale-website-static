@@ -32,12 +32,20 @@ LIVE = "https://www.valeindonesia.com"
 
 
 def _rewrite_assets(html):
-    """Point root-relative assets at the live site so a double-clicked file renders."""
-    # href="/..." and src="/..." -> live absolute. Leave anchors (#), data:, http(s) alone.
+    """Point root-relative AND relative assets at the live site so a double-clicked
+    file renders styled. Pages vary in depth (/indonesia/x, /in/indonesia/x,
+    /indonesia/esg/x); their asset links appear as "/o/..." (root-absolute) OR as
+    "../o/...", "../../o/..." (relative). Both must resolve to {LIVE}/o/... etc."""
+    # Relative: collapse any leading ./ or ../ run before the path -> live absolute.
+    #   href="../o/x.css" and href="../../documents/y" -> {LIVE}/o/x.css , {LIVE}/documents/y
+    html = re.sub(r'(\b(?:href|src))="(?:\.\./)+', rf'\1="{LIVE}/', html)
+    html = re.sub(r'(\b(?:href|src))="\./', rf'\1="{LIVE}/', html)
+    # Root-absolute: href="/..." and src="/..." -> live absolute. Leave #, data:, http(s).
     html = re.sub(r'(\b(?:href|src))="/(?!/)', rf'\1="{LIVE}/', html)
-    # srcset entries "/foo 1x, /bar 2x"
-    html = re.sub(r'(\bsrcset=")(/[^"]*)"',
-                  lambda m: m.group(1) + re.sub(r'(^|,\s*)/', rf'\1{LIVE}/', m.group(2)) + '"',
+    # srcset entries "/foo 1x, /bar 2x" (root-absolute) and "../foo 1x" (relative)
+    html = re.sub(r'(\bsrcset=")([^"]*)"',
+                  lambda m: m.group(1) + re.sub(r'(^|,\s*)(?:\.\./)+', rf'\1{LIVE}/',
+                                re.sub(r'(^|,\s*)/(?!/)', rf'\1{LIVE}/', m.group(2))) + '"',
                   html)
     return html
 
