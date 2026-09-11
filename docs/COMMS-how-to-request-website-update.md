@@ -107,31 +107,39 @@ Like news, you use a **visual form** — no code. GDI sends you an editable
 ## 3. Edit an existing page
 
 For changing text, stats, photos, or contact details on a page that already exists.
+You edit the page **visually** — no code — but first you must ask GDI for the editor.
 
-1. Create a request folder (`…_page-edit_…`) with a `request.md` describing:
-   - the **page URL** (both English and Indonesian if it applies),
-   - a **screenshot** with the part to change marked,
-   - **what to change** — the old wording and the new wording, or the photo to swap.
-2. Attach any new images.
-3. Move the folder to `1-Submitted/`.
+1. **Request the editor first.** Tell GDI which page you want to edit (the **page URL**,
+   English and/or Indonesian). GDI generates a visual editor for that exact page and
+   places it in **`_Templates/`** (named for the page, e.g. `sustainability-editor.html`).
+2. Grab that editor file, **double-click** it — it opens in your browser showing the real,
+   styled page. Then:
+   - **Click any highlighted text** and type the new wording.
+   - **Click any highlighted image** and pick a replacement from your computer.
+   - When done, click **"Save changes"** — it downloads a small file named after the page.
+3. Put that downloaded file (plus any new images) in a request folder and move it to
+   `1-Submitted/`.
+
+> The editor is generated per page and per language. If you're editing both the English
+> and Indonesian versions, ask GDI for both editors.
 
 ## 4. Request a new page
 
 **Easiest — a new page based on an existing one** (recommended when a current page
-already has the layout you want):
+already has the layout you want). Like page edits, you **request the editor first**.
 
-1. Create a `…_new-page_…` folder with a short note (`request.md` or plain text) giving:
+1. **Request the editor first.** Tell GDI:
    - the **existing page's URL** (the layout you want to reuse), and
    - your **new page titles** (English + Indonesian).
-   Move the folder to `1-Submitted/`.
-2. GDI sends you back **two editable pages** (English + Indonesian) — simple `.html` files.
-   **Just double-click one to open it in your web browser.** You'll see the real page, exactly
-   as it looks live. Then:
+   GDI generates the visual editor(s) for that layout and places them in **`_Templates/`**
+   (English + Indonesian).
+2. Grab the editor file(s), **double-click** to open in your browser — you'll see the real
+   page, exactly as it looks live. Then:
    - **Click any highlighted text** and type your new wording.
    - **Click any highlighted image** and pick a replacement from your computer.
-   - When done, click **"Save changes"** at the top — it downloads a small file.
-   Return those downloaded files (plus any new images) in the folder. No HTML, no code —
-   you're editing right on top of the real page.
+   - When done, click **"Save changes"** — it downloads a small file.
+   Put the downloaded file(s) (plus any new images) in a `…_new-page_…` folder and move it
+   to `1-Submitted/`. No HTML, no code — you edit right on top of the real page.
 3. GDI builds the new page with the correct layout and deploys it after approval.
 
 **Brand-new page (no existing layout to copy):** create a `…_new-page_…` folder describing
@@ -144,22 +152,20 @@ for GDI — the request gives them everything they need to build it.
 
 1. GDI picks up your folder and moves it to `2-In-Progress/`.
 2. GDI builds it and puts it on the **preview (dev) site** first.
-3. GDI shares the preview link. **The COMMs approver (Maman Ashari Hasan Tjokke) checks and approves it.**
-4. After approval, GDI publishes it to the live site (**www.valeindonesia.com**).
+3. GDI shares the preview link. **You — the person who submitted the request — check and
+   approve it on the preview** before it goes live. (The requester is the approver.)
+4. After your approval, GDI publishes it to the live site (**www.valeindonesia.com**).
 5. GDI moves your folder to `3-Done-Deployed/` with the live links and date.
 
-## How long it takes (typical)
+## How long it takes
 
-| Request type            | Turnaround (once GDI starts)        |
-|-------------------------|-------------------------------------|
-| News article            | 1 business day                      |
-| Document                | 1 business day                      |
-| Existing-page edit      | 1–2 business days                   |
-| New page / re-clone     | Scheduled — agreed case-by-case     |
+**Target: 1 hour for every request type** (news, document, page edit, new page, vacancy) —
+measured from when GDI picks up the request to when it's live, assuming you approve the dev
+preview promptly.
 
-*Turnaround starts when GDI picks up the request and assumes the approver
-(Maman Ashari Hasan Tjokke) signs off promptly on the dev preview. New pages
-and re-clones vary in effort, so GDI gives a target date per request.*
+**After office hours:** requests submitted outside office hours are only guaranteed within
+the 1-hour target **if you notify GDI in advance** that an after-hours update is coming.
+Without that heads-up, an after-hours request is handled the next business day.
 
 ## Tips to avoid delays
 
