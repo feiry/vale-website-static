@@ -219,9 +219,10 @@ function saveArticle(){
   if(!rec.en.title && !rec.en.body) delete rec.en;
   if(!rec.id.title && !rec.id.body) delete rec.id;
 
+  const fname=(slug||'news')+'-news.json';
   const blob=new Blob([JSON.stringify(rec,null,2)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='news-record.json'; a.click();
-  alert('Saved news-record.json to Downloads.\n\n'+
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fname; a.click();
+  alert('Saved '+fname+' to Downloads.\n\n'+
     (attachAll.length? ('Also attach these image files in the folder:\n- '+attachAll.join('\n- ')) : 'No images.')+
     '\n\nSend the folder back to GDI.');
 }

@@ -124,9 +124,11 @@ function saveDoc(){
   const rec={ section, title, date_published:date, pdf_file:pdf,
               lang: (section===PRESS)? document.getElementById('lang').value : null };
 
+  const fslug=(title.toLowerCase().replace(/&/g,' ').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||'document').slice(0,60);
+  const fname=fslug+'-doc.json';
   const blob=new Blob([JSON.stringify(rec,null,2)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='doc-record.json'; a.click();
-  alert('Saved doc-record.json to Downloads.\n\nAlso attach the PDF in the folder:\n- '+pdf+
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fname; a.click();
+  alert('Saved '+fname+' to Downloads.\n\nAlso attach the PDF in the folder:\n- '+pdf+
         '\n\nSend the folder back to GDI.');
 }
 </script>

@@ -120,9 +120,13 @@ function save(){{
   const out={{_meta:{{source_pages:["indonesia/career.html","in/indonesia/career.html"],
     type_sequence_sha:SIG, generated:new Date().toISOString().slice(0,10)}},
     add:add, remove:remove}};
+  const first=(add[0] && (add[0].title_en||add[0].title_id))||'';
+  const base=first? first.toLowerCase().replace(/&/g,' ').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,50)
+                  : ('update-'+new Date().toISOString().slice(0,10));
+  const fname=base+'-vacancy.json';
   const blob=new Blob([JSON.stringify(out,null,2)],{{type:'application/json'}});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download='vacancies.json'; a.click();
+  a.download=fname; a.click();
 }}
 </script>
 </body></html>
