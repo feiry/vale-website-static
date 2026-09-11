@@ -42,7 +42,8 @@ SECTION_FOLDER = {
     "Financial Statements":   "1374000",
     "Presentation":           "8997207",
 }
-PRESS_FOLDER = {"EN": "1438416", "BH": "1438419"}
+# EN + bilingual (BI) live in the English press-release folder; BH (Indonesian) separate.
+PRESS_FOLDER = {"EN": "1438416", "BH": "1438419", "BI": "1438416"}
 
 
 class IntakeError(Exception):
@@ -60,7 +61,7 @@ def resolve_folder(section, lang, override):
     if section == PRESS_SECTION:
         if lang not in PRESS_FOLDER:
             raise IntakeError(
-                f"Press Releases need lang EN or BH to pick a folder; got {lang!r}.")
+                f"Press Releases need lang EN, BH, or BI to pick a folder; got {lang!r}.")
         return PRESS_FOLDER[lang]
     if section == "Quarterly Reports":
         raise IntakeError(
@@ -97,8 +98,8 @@ def build_record_from_json(path, folder_override=None):
         raise IntakeError(f"pdf_file {pdf_file!r} must be a .pdf.")
 
     lang = data.get("lang")
-    if section == PRESS_SECTION and lang not in ("EN", "BH"):
-        raise IntakeError("Press Releases require lang EN or BH.")
+    if section == PRESS_SECTION and lang not in ("EN", "BH", "BI"):
+        raise IntakeError("Press Releases require lang EN, BH, or BI (bilingual).")
     if section != PRESS_SECTION:
         lang = None  # everything else is bilingual / not language-specific
 

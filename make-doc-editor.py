@@ -81,8 +81,9 @@ input[type=text],input[type=date],select{width:100%;padding:9px 11px;border:1px 
         <select id="lang">
           <option value="EN">English</option>
           <option value="BH">Indonesian</option>
+          <option value="BI">Bilingual (one file, both languages)</option>
         </select>
-        <div class="hint">Press releases have a separate file per language.</div>
+        <div class="hint">Pick "Bilingual" if the single PDF contains both English and Indonesian.</div>
       </div>
     </div>
 
