@@ -88,6 +88,34 @@ COMMs ──> Teams channel "Valeindonesia.com Update - Request"
 - **One request at a time**, tracked; no double-deploy.
 - **Least-privilege identity**; prod deploy credential scoped and logged.
 
+## Access control — only the COMMs team can use the bot
+
+The `ptvi-website-support` bot must be usable **only by the COMMs team**, not anyone in
+the Vale tenant. Enforced in two independent layers (defense in depth):
+
+**Layer 1 — Teams-side scoping (Vale IT controls).**
+- The bot is added to a **single Team/channel** ("Valeindonesia.com Update – Request")
+  whose members are the COMMs team; people outside that channel can't message it.
+- Vale's **Teams admin app-permission policy** makes the app available only to a specific
+  Azure AD group (e.g. `PTVI-Website-COMMs`) — others don't see or get the app.
+- This is standard corporate Teams-app governance; IT decides who receives the app.
+
+**Layer 2 — Operator-side verification (our code enforces — the load-bearing layer).**
+Even inside the channel, the operator **verifies the sender's identity on every message**
+before acting — Teams/Bot Framework supplies each message's **verified Azure AD identity**
+(sender AAD object ID / email), which cannot be spoofed. The operator:
+- Checks the sender against an **authorized-COMMs allowlist** — implemented as membership
+  of an **Azure AD group** (`PTVI-Website-COMMs`), checked via Graph, so IT manages the
+  roster in one place with no code change.
+- **Refuses** any sender not in the group ("You're not authorized to submit website requests").
+- Applies the check to **both** actions: **submitting/processing** a request AND
+  **approving prod** — a non-member can neither trigger a build nor authorize go-live.
+
+**Why both layers:** Layer 1 can be misconfigured (an app policy widened, a member added to
+the channel by mistake); Layer 2 is an independent, code-level gate so an LLM-driven agent
+never processes or deploys on an unverified request. Every accepted and refused request is
+logged with the sender identity for audit.
+
 ## Runtime & cost model
 
 The three components have different lifecycles — this matters for cost and sizing:
@@ -119,15 +147,30 @@ Either way, **you pay for Claude only when it processes a request, never for wai
 
 ## Open questions (for IT / EY / Sandy)
 
-1. **VM**: size, OS (Linux preferred), which subscription/RG, network egress to
-   valeindonesia.com + Anthropic API + Graph. Workload is light/bursty/mostly-idle
-   (see Runtime & cost model) — a small VM suffices; confirm monthly budget with IT.
-2. **Prod deploy identity**: PIM (human-MFA, awkward unattended) vs a scoped managed
-   identity / service principal for the VM. **Recommend the latter — needs IT sign-off.**
-3. **Azure Bot registration** approval + who owns it.
-4. **Graph `Sites.Selected` consent** for the request library.
-5. **Anthropic API** on a Vale-tenant VM — key management + data-egress review.
-6. **`3-Done` move**: automated via Graph or left to the human.
+> **Note on hosting:** per the GDI-hosted decision, the VM, Azure Bot, and app registration
+> live in the **PTGDI tenant**; Vale only installs the Teams app + grants the cross-tenant
+> access below. This removes the Anthropic-egress-in-Vale-tenant blocker Sandy raised.
+
+1. **VM (PTGDI tenant)**: size, OS (Linux preferred), subscription/RG, network egress to
+   valeindonesia.com + Anthropic API + Graph. Light/bursty/mostly-idle (see Runtime & cost
+   model) — a small VM suffices; confirm monthly budget.
+2. **Prod deploy identity (cross-tenant)**: the GDI VM/service principal needs
+   Storage Blob Data Contributor on Vale's `stidstaticsiteprod` / `stidstaticsite002`.
+   Options: Vale grants the GDI principal cross-tenant RBAC on those accounts, or reuse the
+   existing GDI-authorized deploy path. PIM (human-MFA) doesn't fit an unattended VM —
+   **recommend a scoped service principal; needs Vale IT sign-off.**
+3. **Azure Bot registration** in PTGDI (single-tenant bot + **multi-tenant** app
+   registration for cross-tenant messaging) + who owns it.
+4. **Teams app install in Vale**: Vale Teams admin sideloads/approves the
+   `ptvi-website-support` app + scopes it to the COMMs group (see Access control).
+5. **Access-control AD group**: create `PTVI-Website-COMMs` (Vale AAD) listing the COMMs
+   members; the operator checks membership via Graph. Confirm cross-tenant Graph read of a
+   Vale group from the GDI app (guest/`Sites.Selected`-style consent), or mirror the roster
+   GDI-side.
+6. **Graph `Sites.Selected` consent** for the request SharePoint library (Vale admin grant).
+7. **Anthropic API** — GDI-owned account/key (billing + commercial terms on GDI's side);
+   data-egress note for the review.
+8. **`3-Done` move**: automated via Graph or left to the human.
 
 ## Migration from today
 
