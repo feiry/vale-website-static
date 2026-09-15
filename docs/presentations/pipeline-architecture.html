@@ -75,15 +75,15 @@
       </div>
     </div>
     <div class="col vm">
-      <h3>Azure VM — Vale tenant (always-on)</h3>
+      <h3>Azure VM — PTGDI tenant (always-on)</h3>
       <div class="body">
-        <div class="box"><b>Teams Bot endpoint</b><small>Public HTTPS in Azure. Receives the chat commands.</small></div>
+        <div class="box"><b>Teams Bot endpoint</b><small>Public HTTPS in Azure. Receives the chat commands. Bot registered in GDI; Vale just installs the app.</small></div>
         <div class="box"><b>Assistant (conversation)</b><small>Understands the request, confirms before production, writes the replies. Decides <i>when</i> — never deploys by itself.</small></div>
         <div class="box"><b>Operator service (deterministic)</b><small>Reads files via Graph → detect type → validate → build → deploy. Every action logged. This is what touches the site.</small></div>
       </div>
     </div>
   </div>
-  <div class="conn"><span>Files read via Microsoft Graph API</span> &nbsp; <span>Deploys via Azure Storage</span> &nbsp; <span>One Azure AD identity</span></div>
+  <div class="conn"><span>Files read via Microsoft Graph API</span> &nbsp; <span>Deploys to Vale storage (scoped RBAC)</span> &nbsp; <span>GDI-owned Anthropic API (metered)</span></div>
 
   <div class="diagram" style="grid-template-columns:1fr">
     <div class="col"><h3>Target — the website</h3>
@@ -93,6 +93,25 @@
      </div>
     </div>
   </div>
+
+  <h2>Access control — only the COMMs team</h2>
+  <div class="diagram">
+    <div class="col">
+      <h3>Layer 1 — Teams-side (Vale IT)</h3>
+      <div class="body">
+        <div class="box"><b>Channel-scoped</b><small>The bot lives only in the COMMs request channel — outsiders can't message it.</small></div>
+        <div class="box"><b>App restricted to a group</b><small>Vale Teams admin makes the app available only to the <i>PTVI-Website-COMMs</i> AD group.</small></div>
+      </div>
+    </div>
+    <div class="col vm">
+      <h3>Layer 2 — Operator-side (code enforced)</h3>
+      <div class="body">
+        <div class="box"><b>Verified sender on every message</b><small>Teams supplies each message's real Azure AD identity — it cannot be spoofed.</small></div>
+        <div class="box"><b>AD-group check, refuse others</b><small>Non-members of <i>PTVI-Website-COMMs</i> are refused — for <b>both</b> submitting a request and approving go-live. Every accept/refuse logged.</small></div>
+      </div>
+    </div>
+  </div>
+  <div class="conn"><span>Defense in depth: IT restricts access <b>and</b> the code independently verifies every sender</span></div>
 
   <h2>What it covers &nbsp;/&nbsp; Safe by design</h2>
   <div class="grid2">
