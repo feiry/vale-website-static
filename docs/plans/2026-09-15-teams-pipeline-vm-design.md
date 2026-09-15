@@ -88,10 +88,40 @@ COMMs ──> Teams channel "Valeindonesia.com Update - Request"
 - **One request at a time**, tracked; no double-deploy.
 - **Least-privilege identity**; prod deploy credential scoped and logged.
 
+## Runtime & cost model
+
+The three components have different lifecycles — this matters for cost and sizing:
+
+| Component | Runs | Notes |
+|-----------|------|-------|
+| **Teams Bot endpoint** | **Always on (idle)** | A small HTTPS listener must be up 24/7 so Teams can reach the bot. Near-zero CPU when no one is messaging — it just waits. This is the only true always-on process. |
+| **Claude agent** | **Triggered per message** | Spun up when a Teams message arrives, handles that request, then stops. Not a persistent "thinking" process. |
+| **Operator service** | **Triggered on demand** | Runs only when the agent calls it to process/deploy. Idle otherwise. |
+
+**Key point: the VM is always on, but Claude is NOT always running.** Claude is invoked
+by Teams messages, does its work, and stops. It consumes tokens (= cost) **only while
+actually processing a request** — idle time is free.
+
+**Cost shape:**
+- **VM** — the only fixed 24/7 cost. A small Linux VM is sufficient (the workload is light,
+  bursty, mostly idle). Est. ~US$15–40/mo depending on size (confirm with IT).
+- **Anthropic API** — **pay-per-use**, billed only on real request-processing. A handful of
+  news/document/vacancy requests a day is a small, usage-proportional cost; no idle charge.
+- **Graph / Azure Storage** — negligible (a few API calls + small blob uploads per request).
+
+**Trigger model (two viable options, decide at build time):**
+- **Ephemeral** — each Teams message launches a fresh Claude agent that reads state, acts,
+  and exits. Zero idle Claude footprint; each request starts "cold" (re-reads context).
+- **Warm session** — a lightweight Claude session stays resident for conversational
+  continuity. The process is alive but only spends tokens when a message is actually handled.
+
+Either way, **you pay for Claude only when it processes a request, never for waiting.**
+
 ## Open questions (for IT / EY / Sandy)
 
 1. **VM**: size, OS (Linux preferred), which subscription/RG, network egress to
-   valeindonesia.com + Anthropic API + Graph.
+   valeindonesia.com + Anthropic API + Graph. Workload is light/bursty/mostly-idle
+   (see Runtime & cost model) — a small VM suffices; confirm monthly budget with IT.
 2. **Prod deploy identity**: PIM (human-MFA, awkward unattended) vs a scoped managed
    identity / service principal for the VM. **Recommend the latter — needs IT sign-off.**
 3. **Azure Bot registration** approval + who owns it.
