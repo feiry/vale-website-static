@@ -85,6 +85,29 @@ IMG_MARKER_RE = re.compile(r"\[IMG:\s*([^\]]+?)\s*\]")
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
 
+def strip_inline_font_family(html_body):
+    """Remove inline `font-family:` declarations from pasted body HTML so the site's
+    Vale Sans applies. COMMs authors in Word/Outlook/Docs, whose paste injects
+    `font-family: "Segoe UI"|Calibri|Aptos|…` on wrapper divs, overriding Vale Sans
+    (COMMs flagged this on the DEN article, 2026-09-17). We drop ONLY the font-family
+    declaration, leaving other inline style (color/size/line-height) untouched, and
+    clean up any now-empty `style=""`. Handles both raw `"` and HTML-escaped `&quot;`.
+    """
+    if not html_body:
+        return html_body
+    # A font-family value runs until the next REAL ';' (declaration end) or the closing '"'
+    # of the style attribute. The trap: `&quot;` contains a ';', so we must consume `&quot;`
+    # as an atomic unit and only stop on a bare ';' or '"'. Each token is either a `&quot;`
+    # entity or any char that is not ';' or '"'. Trailing ';' (and surrounding space) eaten.
+    body = re.sub(r'font-family\s*:\s*(?:&quot;|[^;"])*\s*;?\s*', '', html_body)
+    # tidy leftovers from removed declarations
+    body = re.sub(r'style="\s*;\s*', 'style="', body)   # `style="; …"` -> `style="…"`
+    body = re.sub(r';\s*;', ';', body)                    # doubled semicolons
+    body = re.sub(r'\s+style="\s*"', '', body)            # now-empty style attr (with leading space)
+    body = re.sub(r'style="\s*"', '', body)               # empty style attr (no leading space)
+    return body
+
+
 class IntakeError(Exception):
     """A validation/parse failure with a message meant for the GDI operator."""
 
@@ -399,7 +422,7 @@ def build_record_from_json(path):
             rec[lang] = {
                 "title": blk.get("title", "").strip(),
                 "subtitle": blk.get("subtitle", "").strip(),
-                "body": blk.get("body", ""),   # already HTML from the editor
+                "body": strip_inline_font_family(blk.get("body", "")),  # HTML from editor; drop pasted font-family so Vale Sans wins
             }
             # body <img> served-paths → the filenames the editor listed to attach.
             for m in re.finditer(r'/documents/d/guest/([^"\']+)', blk.get("body", "")):

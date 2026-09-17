@@ -237,14 +237,30 @@ def _find_year_panel(text, year):
     if not cm:
         raise IntakeError(f"found year {year} but no conteudo-montado after it (markup drift).")
     insert_at = m.end() + cm.end()
-    # skip a leading header-label row (the <h6> Award Name/Presenter/Photo row) so the
-    # new data row lands after the header, not above it.
+    # Skip the leading header-label row (the <h6> Award Name/Presenter/Photo row) so the
+    # new data row lands AFTER the header, not spliced into it. The header row is a full
+    # `...-row` block containing three heading columns; its `.row` closes with `</div></div>`
+    # and is followed by a spacer block. We must consume the WHOLE header row (all three
+    # heading cols) — not just the first col — so anchor on the spacer that terminates it.
     after = text[insert_at:]
     hdr = re.match(
-        r'\s*<div class="lfr-layout-structure-item-[0-9a-f-]+ lfr-layout-structure-item-row ".*?</div>\s*</div>\s*(<div class="lfr-layout-structure-item-basic-component-spacer.*?</div>\s*</div>\s*)?',
+        r'\s*<div class="lfr-layout-structure-item-[0-9a-f-]+ lfr-layout-structure-item-row "[^>]*>'
+        r'\s*<div class="row[^"]*">'          # the flex row opener
+        r'.*?'                                 # the three heading columns
+        r'</div>\s*</div>\s*'                  # closes .row and the item-row wrapper
+        # header-terminating spacer: <div spacer><div fragment><div py-N></div></div></div>
+        # → the py-N div self-closes, then fragment closes, then spacer closes = 3 </div>.
+        r'<div class="lfr-layout-structure-item-basic-component-spacer[^>]*>'
+        r'\s*<div id="fragment-[^"]*">\s*<div class="py-\d+"></div>\s*</div>\s*</div>\s*',
         after, re.DOTALL)
-    if hdr and "component-heading" in after[:hdr.end()]:
-        insert_at += hdr.end()
+    # Only skip if this really is the header row (contains the heading components). Guard
+    # against over-consuming a data row: require the matched span to include a heading AND
+    # not include a paragraph/image component (those mark data rows).
+    if hdr:
+        span = after[:hdr.end()]
+        if "component-heading" in span and "component-paragraph" not in span \
+           and "component-image" not in span:
+            insert_at += hdr.end()
     return (m.start(), insert_at)
 
 
