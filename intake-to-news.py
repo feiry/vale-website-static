@@ -85,27 +85,39 @@ IMG_MARKER_RE = re.compile(r"\[IMG:\s*([^\]]+?)\s*\]")
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
 
-def strip_inline_font_family(html_body):
-    """Remove inline `font-family:` declarations from pasted body HTML so the site's
-    Vale Sans applies. COMMs authors in Word/Outlook/Docs, whose paste injects
-    `font-family: "Segoe UI"|Calibri|Aptos|…` on wrapper divs, overriding Vale Sans
-    (COMMs flagged this on the DEN article, 2026-09-17). We drop ONLY the font-family
-    declaration, leaving other inline style (color/size/line-height) untouched, and
-    clean up any now-empty `style=""`. Handles both raw `"` and HTML-escaped `&quot;`.
+def strip_inline_pasted_styles(html_body):
+    """Remove inline `font-family:` AND `color:` declarations from pasted body HTML so the
+    site's brand typography (Vale Sans) and brand text color (site default #333333) apply.
+    COMMs authors in Word/Outlook/Docs, whose paste injects `font-family: "Segoe UI"|Calibri|
+    Aptos|…` (COMMs flagged 2026-09-17) and `color: rgb(0,0,0)` pure black (COMMs flagged the
+    DEN article's black-vs-#333 body, 2026-09-17) on wrapper divs, overriding the brand styling.
+    We drop ONLY those two declarations, leave other inline style (font-size/line-height/etc.)
+    untouched, and clean up any now-empty `style=""`. Handles raw `"` and HTML-escaped `&quot;`.
+
+    NOTE: this strips ALL inline color, incl. any the author *wanted* (rare in pasted bodies).
+    Intentional brand accents (e.g. green #007e7a CTA links) are added by GDI post-intake per
+    the color guide, not carried from the paste — so a blanket strip matches how original
+    articles look (no inline color; text inherits site #333).
     """
     if not html_body:
         return html_body
-    # A font-family value runs until the next REAL ';' (declaration end) or the closing '"'
-    # of the style attribute. The trap: `&quot;` contains a ';', so we must consume `&quot;`
-    # as an atomic unit and only stop on a bare ';' or '"'. Each token is either a `&quot;`
-    # entity or any char that is not ';' or '"'. Trailing ';' (and surrounding space) eaten.
+    # A value runs until the next REAL ';' (declaration end) or the closing '"' of the style
+    # attribute. The trap: `&quot;` contains a ';', so consume `&quot;` as an atomic unit and
+    # only stop on a bare ';' or '"'. Each token is either a `&quot;` entity or any char that
+    # is not ';' or '"'. Trailing ';' (and surrounding space) eaten. `(?<![-\w])` guards
+    # `color` so we don't match `background-color`/`border-color`/`caret-color` etc.
     body = re.sub(r'font-family\s*:\s*(?:&quot;|[^;"])*\s*;?\s*', '', html_body)
+    body = re.sub(r'(?<![-\w])color\s*:\s*(?:&quot;|[^;"])*\s*;?\s*', '', body)
     # tidy leftovers from removed declarations
     body = re.sub(r'style="\s*;\s*', 'style="', body)   # `style="; …"` -> `style="…"`
     body = re.sub(r';\s*;', ';', body)                    # doubled semicolons
     body = re.sub(r'\s+style="\s*"', '', body)            # now-empty style attr (with leading space)
     body = re.sub(r'style="\s*"', '', body)               # empty style attr (no leading space)
     return body
+
+
+# Back-compat alias (older callers / docs referenced the font-family-only name).
+strip_inline_font_family = strip_inline_pasted_styles
 
 
 class IntakeError(Exception):
@@ -422,7 +434,7 @@ def build_record_from_json(path):
             rec[lang] = {
                 "title": blk.get("title", "").strip(),
                 "subtitle": blk.get("subtitle", "").strip(),
-                "body": strip_inline_font_family(blk.get("body", "")),  # HTML from editor; drop pasted font-family so Vale Sans wins
+                "body": strip_inline_pasted_styles(blk.get("body", "")),  # HTML from editor; drop pasted font-family + color so brand styling wins
             }
             # body <img> served-paths → the filenames the editor listed to attach.
             for m in re.finditer(r'/documents/d/guest/([^"\']+)', blk.get("body", "")):
