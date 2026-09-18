@@ -8,15 +8,16 @@
 
 ## Preferred method — the intake converter
 
-For a COMMs-authored request, use `intake-to-news.py` instead of hand-editing JSON. It
-turns a filled Markdown request (`docs/templates/news-request.md`) into a validated record
-and appends it safely — validating date, category, slug uniqueness, and referenced images,
-backing up the data file, and self-checking that the result still parses:
+For a COMMs-authored request, use `intake-to-news.py` instead of hand-editing JSON. COMMs
+fills the visual form (`make-news-editor.py` → `new-article.html`) and Saves a
+`news-record.json`; the converter validates it and appends safely — validating date,
+category, slug uniqueness, and referenced images, backing up the data file, and
+self-checking that the result still parses:
 
 ```bash
-python3 intake-to-news.py <request-folder>/request.md --dry-run   # inspect
-python3 intake-to-news.py <request-folder>/request.md             # write
-python3 build-news.py                                             # rebuild pages
+python3 intake-to-news.py <request-folder>/news-record.json --dry-run   # inspect
+python3 intake-to-news.py <request-folder>/news-record.json             # write
+python3 build-news.py                                                   # rebuild pages
 ```
 
 Full operator steps (image placement, deploy) are in `docs/GDI-content-update-runbook.md`.
