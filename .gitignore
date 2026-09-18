@@ -11,3 +11,7 @@ MIGRATION_NOTES.md
 
 __pycache__/
 .DS_Store
+inbox/
+
+# intake-tool timestamped backups of the source-of-truth data files (safety copies, not history)
+site-data/*.bak-*
