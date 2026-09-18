@@ -15,3 +15,38 @@ inbox/
 
 # intake-tool timestamped backups of the source-of-truth data files (safety copies, not history)
 site-data/*.bak-*
+
+# ── working artifacts (crawl/reclone/export dumps + one-off reports) ──────────
+# Disposable outputs from re-clones, crawls, and QA rounds — not source. Scripts
+# (deploy-*.sh, fix-*.py, crawl-site.sh, …) and docs/ are intentionally NOT ignored.
+reclone*/
+crawl-archive/
+gapcheck-*/
+canary-work/
+site-raw/
+site-OLD-en-only/
+site-holding/
+mockup-mining-nav/
+rollback-career-*/
+vale-export/
+vale-export-fresh/
+# QA / status reports and scratch assets dropped in the repo root
+*.xlsx
+*.docx
+maman-menu-*.png
+sri-news-tagging-*.png
+peter-*.html
+peter-*.xlsx
+orphan-root-blobs-*.txt
+cloning-issues-*.xlsx
+Cloning-*.xlsx
+canary-urls.txt
+urls-all.txt
+urls-en.txt
+urls-id.txt
+
+# secrets — never commit certificates / private keys
+*.pfx
+*.pem
+*.key
+*.p12
