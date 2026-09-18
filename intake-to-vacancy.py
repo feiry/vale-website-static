@@ -55,8 +55,13 @@ def fmt_date(date_iso, lang):
 
 # Strip a prefix COMMs may have typed into the title (the script adds its own), so the
 # label never doubles ("Job vacancy for Job vacancy for Janitor"). Case-insensitive.
+# COMMs sometimes paste the WHOLE formatted label, incl. a leading date, e.g.
+# "09/18/2026 - Job vacancy for Kolaka…" or "18/09/2026 - Lowongan Kerja untuk …" —
+# so optionally consume a leading  <date> -  before the phrase too. Applied repeatedly
+# in clean_title() in case both the date and phrase were typed.
 _TITLE_PREFIX_RE = re.compile(
-    r'^\s*(?:job\s+vacanc(?:y|ies)\s+for|lowongan\s+kerja\s+untuk)\s*[:\-]?\s*', re.I)
+    r'^\s*(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s*[-–]\s*)?'          # optional leading date + dash
+    r'(?:job\s+vacanc(?:y|ies)\s+for|lowongan\s+kerja\s+untuk)\s*[:\-]?\s*', re.I)
 
 
 def clean_title(title):
@@ -151,8 +156,14 @@ def apply_to_page(html, req, page_lang, seed):
         label = label_html(a["date"], title, page_lang)
         if reusable:
             uuid, frag = reusable.pop(0)
-            inline = False
-            plan.append(f"  ADD (reuse UUID {uuid[:8]}, 20px) {slug}")
+            # Always apply the inline font-size on the new slot. Older removed slots carried
+            # the 20px via a per-UUID CSS rule (so reusing the UUID alone sufficed), but
+            # recent slots carry it INLINE (font-size:var(--font-size-lg)) — that inline style
+            # is removed with the old slot, so reuse-without-inline renders 18px. The inline
+            # style is idempotent/harmless even if a per-UUID CSS rule also exists. (Fixed
+            # 2026-09-18: Kolaka vacancy reused 3c4dfc31, which had inline size, not a CSS rule.)
+            inline = True
+            plan.append(f"  ADD (reuse UUID {uuid[:8]}, inline 20px) {slug}")
         else:
             uuid = new_uuid(seed, i)
             frag = new_uuid(seed + "f", i)
