@@ -17,8 +17,9 @@ inbox/
 site-data/*.bak-*
 
 # ── working artifacts (crawl/reclone/export dumps + one-off reports) ──────────
-# Disposable outputs from re-clones, crawls, and QA rounds — not source. Scripts
-# (deploy-*.sh, fix-*.py, crawl-site.sh, …) and docs/ are intentionally NOT ignored.
+# Disposable outputs from re-clones, crawls, and QA rounds — not source. Ops scripts
+# (deploy-*.sh, crawl-site.sh, …) and docs/plans + notes ARE tracked; big media and
+# QA report snapshots below are not.
 reclone*/
 crawl-archive/
 gapcheck-*/
@@ -44,6 +45,17 @@ canary-urls.txt
 urls-all.txt
 urls-en.txt
 urls-id.txt
+
+# docs/ — keep plans + notes (*.md); ignore big media, QA report snapshots, generated forms
+docs/*.png
+docs/*.jpeg
+docs/*.jpg
+docs/Laporan*.html
+docs/Tanggapan*.html
+docs/crawl-prep/
+docs/latest-templates/
+# generated form output (rebuilt by make-vacancy-manager.py, like site/)
+/vacancy-manager.html
 
 # secrets — never commit certificates / private keys
 *.pfx
