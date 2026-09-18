@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Website Update Pipeline — Architecture</title>
+<style>
+ :root{--teal:#0a5c36;--teal2:#0e7a48;--yellow:#e6b400;--dark:#1f1f1f;--grey:#666;--light:#f4f8f5;--line:#cfe0d6}
+ *{box-sizing:border-box}
+ body{font-family:"Segoe UI",-apple-system,Arial,sans-serif;margin:0;color:var(--dark);background:#eef3ef}
+ .page{max-width:1180px;margin:0 auto;background:#fff;min-height:100vh;box-shadow:0 0 24px rgba(0,0,0,.08)}
+ header{background:var(--teal);color:#fff;padding:20px 32px;border-bottom:6px solid var(--yellow)}
+ header h1{margin:0;font-size:26px}
+ header p{margin:4px 0 0;color:#bfe0cf;font-size:14px}
+ .badge{display:inline-block;background:var(--yellow);color:#1f1f1f;font-weight:700;font-size:11px;padding:2px 8px;border-radius:10px;vertical-align:middle;margin-left:8px}
+ main{padding:24px 32px 40px}
+ h2{color:var(--teal);font-size:16px;letter-spacing:.5px;text-transform:uppercase;margin:26px 0 12px;border-bottom:2px solid var(--teal);padding-bottom:5px}
+ /* flow strip */
+ .flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+ .step{flex:1 1 0;min-width:120px;background:var(--light);border:1px solid var(--line);border-radius:8px;padding:12px;text-align:center;position:relative}
+ .step .n{font-size:11px;color:var(--grey);font-weight:700}
+ .step .t{font-weight:700;color:var(--teal);font-size:14px;margin-top:2px}
+ .step .d{font-size:11.5px;color:var(--grey);margin-top:4px;line-height:1.35}
+ .step.live{background:var(--teal);border-color:var(--teal)}
+ .step.live .t,.step.live .n{color:#fff}.step.live .d{color:#cfe6da}
+ .arrow{align-self:center;color:var(--yellow);font-weight:900;font-size:22px;padding:0 6px}
+ /* diagram */
+ .diagram{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+ .col{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+ .col h3{margin:0;background:var(--teal);color:#fff;font-size:13px;padding:8px 12px;font-weight:700}
+ .col.vm h3{background:var(--teal2)}
+ .col .body{padding:14px}
+ .box{background:var(--light);border:1px solid var(--line);border-left:4px solid var(--yellow);border-radius:6px;padding:10px 12px;margin-bottom:10px}
+ .box b{color:var(--teal)}
+ .box small{color:var(--grey);display:block;margin-top:2px;font-size:12px;line-height:1.4}
+ .conn{font-size:12px;color:var(--grey);text-align:center;margin:2px 0 10px}
+ .conn span{background:#fff;border:1px dashed var(--line);border-radius:20px;padding:2px 10px}
+ /* two-col lists */
+ .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px 26px}
+ ul.clean{list-style:none;padding:0;margin:0}
+ ul.clean li{padding:5px 0;font-size:14px;line-height:1.4;border-bottom:1px dotted var(--line)}
+ ul.clean li b{color:var(--teal)}
+ ul.clean li:before{content:"›";color:var(--yellow);font-weight:900;margin-right:8px}
+ .note{background:var(--light);border-radius:8px;padding:12px 14px;font-size:13.5px;color:var(--dark)}
+ .note b{color:var(--teal)}
+ .foot{padding:14px 32px;background:var(--teal);color:#cfe6da;font-size:12px;display:flex;justify-content:space-between}
+ @media(max-width:820px){.diagram,.grid2{grid-template-columns:1fr}}
+</style></head>
+<body>
+<div class="page">
+ <header>
+   <h1>Website Update Pipeline — Architecture <span class="badge">Azure VM · Teams</span></h1>
+   <p>COMMs authors · GDI reviews &amp; publishes · live in ~1 hour — hosted in Vale's Azure tenant, driven from Microsoft Teams</p>
+ </header>
+ <main>
+
+  <h2>The flow</h2>
+  <div class="flow">
+    <div class="step"><div class="n">1</div><div class="t">COMMs authors</div><div class="d">Fills a visual form, drops it in the Teams request folder</div></div>
+    <div class="arrow">›</div>
+    <div class="step"><div class="n">2</div><div class="t">Ask in Teams</div><div class="d">"process the loker request"</div></div>
+    <div class="arrow">›</div>
+    <div class="step"><div class="n">3</div><div class="t">Auto-process</div><div class="d">Detect · validate · build · deploy to preview</div></div>
+    <div class="arrow">›</div>
+    <div class="step"><div class="n">4</div><div class="t">Approve</div><div class="d">Requester checks the preview &amp; approves</div></div>
+    <div class="arrow">›</div>
+    <div class="step live"><div class="n">5</div><div class="t">LIVE</div><div class="d">Published to valeindonesia.com</div></div>
+  </div>
+
+  <h2>How it's built</h2>
+  <div class="diagram">
+    <div class="col">
+      <h3>Microsoft 365 — where COMMs works</h3>
+      <div class="body">
+        <div class="box"><b>Teams channel</b><small>“Valeindonesia.com Update – Request”. Requests dropped in <i>1-Submitted</i>; status &amp; preview links posted back as Adaptive Cards with an Approve button.</small></div>
+        <div class="box"><b>SharePoint document library</b><small>Holds the request folders &amp; the form templates. No file syncing to any laptop.</small></div>
+      </div>
+    </div>
+    <div class="col vm">
+      <h3>Azure VM — PTGDI tenant (always-on)</h3>
+      <div class="body">
+        <div class="box"><b>Teams Bot endpoint</b><small>Public HTTPS in Azure. Receives the chat commands. Bot registered in GDI; Vale just installs the app.</small></div>
+        <div class="box"><b>Assistant (conversation)</b><small>Understands the request, confirms before production, writes the replies. Decides <i>when</i> — never deploys by itself.</small></div>
+        <div class="box"><b>Operator service (deterministic)</b><small>Reads files via Graph → detect type → validate → build → deploy. Every action logged. This is what touches the site.</small></div>
+      </div>
+    </div>
+  </div>
+  <div class="conn"><span>Files read via Microsoft Graph API</span> &nbsp; <span>Deploys to Vale storage (scoped RBAC)</span> &nbsp; <span>GDI-owned Anthropic API (metered)</span></div>
+
+  <div class="diagram" style="grid-template-columns:1fr">
+    <div class="col"><h3>Target — the website</h3>
+     <div class="body" style="display:flex;gap:14px;flex-wrap:wrap">
+       <div class="box" style="flex:1;margin:0"><b>Preview (dev)</b><small>Every change lands here first for approval.</small></div>
+       <div class="box" style="flex:1;margin:0;border-left-color:var(--teal)"><b>Production — www.valeindonesia.com</b><small>Published only after the requester approves.</small></div>
+     </div>
+    </div>
+  </div>
+
+  <h2>Access control — only the COMMs team</h2>
+  <div class="diagram">
+    <div class="col">
+      <h3>Layer 1 — Teams-side (Vale IT)</h3>
+      <div class="body">
+        <div class="box"><b>Channel-scoped</b><small>The bot lives only in the COMMs request channel — outsiders can't message it.</small></div>
+        <div class="box"><b>App restricted to a group</b><small>Vale Teams admin makes the app available only to the <i>PTVI-Website-COMMs</i> AD group.</small></div>
+      </div>
+    </div>
+    <div class="col vm">
+      <h3>Layer 2 — Operator-side (code enforced)</h3>
+      <div class="body">
+        <div class="box"><b>Verified sender on every message</b><small>Teams supplies each message's real Azure AD identity — it cannot be spoofed.</small></div>
+        <div class="box"><b>AD-group check, refuse others</b><small>Non-members of <i>PTVI-Website-COMMs</i> are refused — for <b>both</b> submitting a request and approving go-live. Every accept/refuse logged.</small></div>
+      </div>
+    </div>
+  </div>
+  <div class="conn"><span>Defense in depth: IT restricts access <b>and</b> the code independently verifies every sender</span></div>
+
+  <h2>What it covers &nbsp;/&nbsp; Safe by design</h2>
+  <div class="grid2">
+    <ul class="clean">
+      <li><b>News articles</b> — bilingual, rich text + photos</li>
+      <li><b>Documents / PDFs</b> — reports, statements, press releases</li>
+      <li><b>Job vacancies</b> — add / remove lokers</li>
+      <li><b>Page edits</b> — text, stats, images</li>
+      <li><b>New pages</b> — reuse a layout with new content</li>
+    </ul>
+    <ul class="clean">
+      <li><b>Preview first</b> — always dev before production</li>
+      <li><b>Human approval gate</b> — requester approves go-live</li>
+      <li><b>Automatic validation</b> — layout can't be broken</li>
+      <li><b>Backup &amp; rollback</b> — every change reversible</li>
+      <li><b>Full audit trail</b> — submitted → live, logged</li>
+    </ul>
+  </div>
+
+  <h2>Why this design</h2>
+  <div class="note">
+    <b>Company-standard &amp; robust.</b> Everything lives in Microsoft Teams and Vale's
+    Azure tenant — no third-party chat, no files synced to a personal laptop. The assistant
+    handles the conversation; a separate, auditable service performs the actual deploys.
+    COMMs' experience is unchanged — same forms, same Teams folder, same approve-the-preview step.
+  </div>
+
+ </main>
+ <div class="foot"><span>PT GDI × PT Vale Indonesia — Website Update Pipeline</span><span>Architecture overview · Sept 2026</span></div>
+</div>
+</body></html>

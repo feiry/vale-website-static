@@ -8,3 +8,57 @@ node_modules/
 *.tfvars
 !example.tfvars
 MIGRATION_NOTES.md
+
+__pycache__/
+.DS_Store
+inbox/
+
+# intake-tool timestamped backups of the source-of-truth data files (safety copies, not history)
+site-data/*.bak-*
+
+# ── working artifacts (crawl/reclone/export dumps + one-off reports) ──────────
+# Disposable outputs from re-clones, crawls, and QA rounds — not source. Ops scripts
+# (deploy-*.sh, crawl-site.sh, …) and docs/plans + notes ARE tracked; big media and
+# QA report snapshots below are not.
+reclone*/
+crawl-archive/
+gapcheck-*/
+canary-work/
+site-raw/
+site-OLD-en-only/
+site-holding/
+mockup-mining-nav/
+rollback-career-*/
+vale-export/
+vale-export-fresh/
+# QA / status reports and scratch assets dropped in the repo root
+*.xlsx
+*.docx
+maman-menu-*.png
+sri-news-tagging-*.png
+peter-*.html
+peter-*.xlsx
+orphan-root-blobs-*.txt
+cloning-issues-*.xlsx
+Cloning-*.xlsx
+canary-urls.txt
+urls-all.txt
+urls-en.txt
+urls-id.txt
+
+# docs/ — keep plans + notes (*.md); ignore big media, QA report snapshots, generated forms
+docs/*.png
+docs/*.jpeg
+docs/*.jpg
+docs/Laporan*.html
+docs/Tanggapan*.html
+docs/crawl-prep/
+docs/latest-templates/
+# generated form output (rebuilt by make-vacancy-manager.py, like site/)
+/vacancy-manager.html
+
+# secrets — never commit certificates / private keys
+*.pfx
+*.pem
+*.key
+*.p12

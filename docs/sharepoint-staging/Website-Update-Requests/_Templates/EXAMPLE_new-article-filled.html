@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>New news article — PT Vale</title>
+<style>
+:root{--teal:#00795e;--teald:#00533f;--yellow:#F2A900;--grey:#5a5a5a;--line:#dce3e0;}
+*{box-sizing:border-box}
+body{margin:0;font-family:Calibri,-apple-system,Arial,sans-serif;color:#222;background:#eef2f0;}
+#bar{position:sticky;top:0;z-index:10;background:var(--teald);color:#fff;padding:12px 20px;
+  display:flex;align-items:center;gap:16px}
+#bar b{color:var(--yellow)}
+#bar .sp{flex:1}
+#bar button{background:var(--yellow);color:#111;border:0;border-radius:5px;padding:9px 18px;font-weight:bold;font-size:14px;cursor:pointer}
+.wrap{max-width:1100px;margin:22px auto;padding:0 18px 60px}
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:22px 24px;margin-bottom:20px}
+.row{display:flex;gap:20px;flex-wrap:wrap}
+.col{flex:1;min-width:280px}
+label{display:block;font-weight:bold;font-size:13px;color:var(--teald);margin:14px 0 5px}
+input[type=text],input[type=date],select{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:6px;font-size:15px;font-family:inherit}
+.hint{font-size:12px;color:var(--grey);margin-top:3px}
+h2.sec{margin:0 0 4px;color:var(--teald)}
+.langtag{display:inline-block;background:var(--teal);color:#fff;font-size:12px;font-weight:bold;padding:3px 10px;border-radius:4px;margin-bottom:6px}
+.rt-toolbar{display:flex;gap:4px;margin:5px 0;flex-wrap:wrap}
+.rt-toolbar button{background:#f0f3f2;border:1px solid var(--line);border-radius:4px;padding:5px 10px;font-size:13px;cursor:pointer}
+.rt{min-height:170px;border:1px solid var(--line);border-radius:6px;padding:12px;font-size:15px;line-height:1.5;background:#fff}
+.rt:focus{outline:2px solid var(--teal);outline-offset:-1px}
+.rt img{max-width:100%;height:auto;display:block;margin:8px 0}
+.cover-preview{margin-top:8px;max-width:320px;border:1px solid var(--line);border-radius:6px;display:none}
+.note{background:#fff8e6;border:1px solid var(--yellow);border-radius:8px;padding:12px 16px;font-size:13px;color:#5a4a00}
+</style></head>
+<body>
+<div id="bar"><span>📰 <b>PT Vale</b> — write a news article</span><span class="sp"></span>
+  <span id="status" style="opacity:.85;font-size:13px"></span>
+  <button onclick="saveArticle()">Save article ⤓</button></div>
+<div class="wrap">
+  <div class="note">Fill in both English and Indonesian. Use the <b>B</b> / <i>I</i> / heading / link / image
+  buttons above each body box. Add photos with the <b>Image</b> button (they’re embedded here; attach the
+  same files in the folder). When done, click <b>Save article</b> and send the downloaded file (plus images)
+  back to GDI. Everything is previewed on the dev site and approved before it goes live.</div>
+
+  <div class="card">
+    <div class="row">
+      <div class="col">
+        <label>Publish date</label>
+        <input type="date" id="date">
+        <div class="hint">Controls sort order (newest first).</div>
+      </div>
+      <div class="col">
+        <label>Category</label>
+        <select id="category"></select>
+        <div class="hint">Pick the one operational / ESG area this story belongs to.</div>
+      </div>
+    </div>
+    <label>Cover image</label>
+    <input type="file" id="cover" accept-hint="image">
+    <div class="hint">Optional. The card + article header image. Blank = default placeholder.</div>
+    <img id="coverPrev" class="cover-preview">
+  </div>
+
+  <div class="card">
+    <span class="langtag">ENGLISH</span>
+    <label>Title</label><input type="text" id="en_title">
+    <label>Subtitle</label><input type="text" id="en_subtitle">
+    <label>Body</label><div class="rt-toolbar"><button type=button onclick="rtCmd('en_body','bold')"><b>B</b></button><button type=button onclick="rtCmd('en_body','italic')"><i>I</i></button><button type=button onclick="rtHeading('en_body')">Heading</button><button type=button onclick="rtCmd('en_body','insertUnorderedList')">• List</button><button type=button onclick="rtLink('en_body')">Link</button><button type=button onclick="rtImage('en_body')">Image</button></div><div class="rt" id="en_body" contenteditable="true"></div>
+  </div>
+
+  <div class="card">
+    <span class="langtag">BAHASA INDONESIA</span>
+    <label>Judul (Title)</label><input type="text" id="id_title">
+    <label>Subjudul (Subtitle)</label><input type="text" id="id_subtitle">
+    <label>Isi (Body)</label><div class="rt-toolbar"><button type=button onclick="rtCmd('id_body','bold')"><b>B</b></button><button type=button onclick="rtCmd('id_body','italic')"><i>I</i></button><button type=button onclick="rtHeading('id_body')">Heading</button><button type=button onclick="rtCmd('id_body','insertUnorderedList')">• List</button><button type=button onclick="rtLink('id_body')">Link</button><button type=button onclick="rtImage('id_body')">Image</button></div><div class="rt" id="id_body" contenteditable="true"></div>
+  </div>
+</div>
+
+<script>
+const CATEGORIES = ["IGP Morowali", "IGP Pomalaa", "IGP Sorlim", "People", "Social", "Sustainability"];
+const PREFILL = {"slug": "maknai-hari-anak-nasional-pt-vale-gandeng-komunitas-lokal-gelar-lomba-kreatifitas-anak", "date": "2023-07-25", "categories": ["Indonesia", "Sustainability", "Indonesia news"], "cover": "/documents/44618/4432286/20230723-Hari+Anak+Nasional-Kantor+Desa+Sorowako+%283%29.jpg/fa32b984-32fa-b09b-f3b3-a2e07a81c5b4?version=1.0&t=1690273871236", "en": {"title": "Maknai Hari Anak Nasional, PT Vale Gandeng Komunitas Lokal Gelar Lomba Kreatifitas Anak", "subtitle": "Bupati Luwu Timur Budiman, mengapresiasi event kreatifitas anak yang diselenggarakan PT Vale Indonesia Tbk (PT Vale) bersama Forum Anak Kecamatan Nuha, Asosiasi Perusahaan Sahabat Anak Indonesia (APSAI) Luwu Timur, Sorowako Music Community, serta pemangku kepentingan terkait lainnya.", "body": "<p>Bupati Luwu Timur Budiman, mengapresiasi event kreatifitas anak yang diselenggarakan PT Vale Indonesia Tbk (PT Vale) bersama Forum Anak Kecamatan Nuha, Asosiasi Perusahaan Sahabat Anak Indonesia (APSAI) Luwu Timur, Sorowako Music Community, serta pemangku kepentingan terkait lainnya.</p>\n\n<p>Event kreatifitas yang dilaksanakan berupa &nbsp;Bentuk perayaan yang diadakan adalah lomba mewarnai dan lomba mendongeng. &nbsp;Kegiatan yang &nbsp;diikuti sebanyak 200 anak &nbsp;ini berlangsung di halaman Kantor Desa Sorowako, Minggu (23/7/2023). Sebanyak 200 anak ikut memeriahkan kegiatan ini.</p>\n\n<p>Budiman mengatakan, kegiatan ini sangat baik untuk mendukung tumbuh kembang anak, dengan memberikan sebuah pengalaman yang positif. \"Masa depan Luwu Timur ada pada anak-anak kita ini, sehingga sejak dini harus selalu menghadirkan lingkungan yang positif,\" katanya.</p>\n\n<p><img alt=\"\" src=\"/documents/d/guest/20230723-hari-anak-nasional-kantor-desa-sorowako-3-1\" style=\"margin: 0px;\" width=\"966\" data-fileentryid=\"4667907\" /><br />\n&nbsp;</p>\n\n<p>Menurutnya, usia 0-5 tahun merupakan usia emas, sehingga pada usia ini mereka harus diberikan kegiatan-kegiatan yang dapat mendukung perkembangannya. Dengan begitu, Luwu Timur dapat menghasilkan generasi penerus bangsa yang sehat, cerdas, ceria, berakhlak mulia, dan cinta tanah air.</p>\n\n<p>\"Saya berharap kegiatan seperti ini tidak hanya dilakukan pada momen Hari Anak,, tetapi juga pada hari-hari biasa untuk menghasilkan generasi yang dapat membangun Luwu Timur lebih maju. Baru-baru ini Luwu Timur meraih penghargaan sebagai Kabupaten/Kota Layak Anak (KLA) Tahun 2023 kategori Madya. Mari kita bersama-sama meningkatkan prestasi ini. Ke depannya akan dibuat Perda terkait anak dan pembangunan fasilitas yang memadai untuk anak-anak kita,\" jelasnya.</p>\n\n<p>Sementara itu, Direktur External Relations PT Vale Endra Kusuma menjelaskan, andilnya PT Vale dalam peringatan hari anak nasional sebagai wujud kepedulian atas upaya menciptakan generasi pelanjut yang memiliki nilai-nilai kreativitas yang mumpuni.</p>\n\n<p>Selain itu, bagi PT &nbsp;Vale &nbsp;Peringatan Hari Anak Nasional &nbsp;juga menjadi momentum penting untuk mengubah kepedulian dan partisipasi seluruh pemangku kepentingan terkait &nbsp;dalam menjamin pemenuhan hak anak.</p>\n\n<p><img alt=\"\" src=\"/documents/d/guest/20230723-hari-anak-nasional-kantor-desa-sorowako-2-\" style=\"margin: 0px;\" width=\"965\" data-fileentryid=\"4667696\" /><br />\n&nbsp;</p>\n\n<p>Kata Endra Kusuma, perlu perhatian dan dukungan dari semua pihak untuk bisa memenuhi hak-hak anak diantaranya hak untuk bermain, mendapatkan pendidikan, perlindungan, dan &nbsp;mendapatkan akses kesehatan, serta mendorong kolaborasi untuk menciptakan lingkungan yang aman dan nyaman bagi anak, serta upaya pencegahan kekerasan dan eksploitasi anak.&nbsp;</p>\n\n<p>\"Semoga melalui kegiatan ini kita dapat memfasilitasi anak-anak demi pengembangan keterampilan, kreativitas dan bakat mereka,\" ujarnya.</p>\n\n<p>PT Vale juga aktif melakukan kegiatan dalam menanamkan cinta lingkungan sejak dini, seperti mengenalkan kepada anak-anak tentang keanekaragaman hayati, pengelolaan sampah dan kelestarian lingkungan.</p>\n\n<p>\"Kegiatan seperti ini kami laksanakan melalui kerja sama dengan sekolah. Selain itu, kami juga mengampanyekan pengurangan penggunaan plastik kepada para orang tua dengan mendorong mereka memberikan tempat bekal kepada anak saat berangkat ke sekolah,\" jelasnya.[]</p>"}, "id": {"title": "Maknai Hari Anak Nasional, PT Vale Gandeng Komunitas Lokal Gelar Lomba Kreatifitas Anak", "subtitle": "Bupati Luwu Timur Budiman, mengapresiasi event kreatifitas anak yang diselenggarakan PT Vale Indonesia Tbk (PT Vale) bersama Forum Anak Kecamatan Nuha, Asosiasi Perusahaan Sahabat Anak Indonesia (APSAI) Luwu Timur, Sorowako Music Community, serta pemangku kepentingan terkait lainnya.", "body": "<p>Bupati Luwu Timur Budiman, mengapresiasi event kreatifitas anak yang diselenggarakan PT Vale Indonesia Tbk (PT Vale) bersama Forum Anak Kecamatan Nuha, Asosiasi Perusahaan Sahabat Anak Indonesia (APSAI) Luwu Timur, Sorowako Music Community, serta pemangku kepentingan terkait lainnya.</p>\n\n<p>Event kreatifitas yang dilaksanakan berupa &nbsp;Bentuk perayaan yang diadakan adalah lomba mewarnai dan lomba mendongeng. &nbsp;Kegiatan yang &nbsp;diikuti sebanyak 200 anak &nbsp;ini berlangsung di halaman Kantor Desa Sorowako, Minggu (23/7/2023). Sebanyak 200 anak ikut memeriahkan kegiatan ini.</p>\n\n<p>Budiman mengatakan, kegiatan ini sangat baik untuk mendukung tumbuh kembang anak, dengan memberikan sebuah pengalaman yang positif. \"Masa depan Luwu Timur ada pada anak-anak kita ini, sehingga sejak dini harus selalu menghadirkan lingkungan yang positif,\" katanya.</p>\n\n<p><img alt=\"\" src=\"/documents/d/guest/20230723-hari-anak-nasional-kantor-desa-sorowako-3-1\" style=\"margin: 0px;\" width=\"966\" data-fileentryid=\"4667907\" /><br />\n&nbsp;</p>\n\n<p>Menurutnya, usia 0-5 tahun merupakan usia emas, sehingga pada usia ini mereka harus diberikan kegiatan-kegiatan yang dapat mendukung perkembangannya. Dengan begitu, Luwu Timur dapat menghasilkan generasi penerus bangsa yang sehat, cerdas, ceria, berakhlak mulia, dan cinta tanah air.</p>\n\n<p>\"Saya berharap kegiatan seperti ini tidak hanya dilakukan pada momen Hari Anak,, tetapi juga pada hari-hari biasa untuk menghasilkan generasi yang dapat membangun Luwu Timur lebih maju. Baru-baru ini Luwu Timur meraih penghargaan sebagai Kabupaten/Kota Layak Anak (KLA) Tahun 2023 kategori Madya. Mari kita bersama-sama meningkatkan prestasi ini. Ke depannya akan dibuat Perda terkait anak dan pembangunan fasilitas yang memadai untuk anak-anak kita,\" jelasnya.</p>\n\n<p>Sementara itu, Direktur External Relations PT Vale Endra Kusuma menjelaskan, andilnya PT Vale dalam peringatan hari anak nasional sebagai wujud kepedulian atas upaya menciptakan generasi pelanjut yang memiliki nilai-nilai kreativitas yang mumpuni.</p>\n\n<p>Selain itu, bagi PT &nbsp;Vale &nbsp;Peringatan Hari Anak Nasional &nbsp;juga menjadi momentum penting untuk mengubah kepedulian dan partisipasi seluruh pemangku kepentingan terkait &nbsp;dalam menjamin pemenuhan hak anak.</p>\n\n<p><img alt=\"\" src=\"/documents/d/guest/20230723-hari-anak-nasional-kantor-desa-sorowako-2-\" style=\"margin: 0px;\" width=\"965\" data-fileentryid=\"4667696\" /><br />\n&nbsp;</p>\n\n<p>Kata Endra Kusuma, perlu perhatian dan dukungan dari semua pihak untuk bisa memenuhi hak-hak anak diantaranya hak untuk bermain, mendapatkan pendidikan, perlindungan, dan &nbsp;mendapatkan akses kesehatan, serta mendorong kolaborasi untuk menciptakan lingkungan yang aman dan nyaman bagi anak, serta upaya pencegahan kekerasan dan eksploitasi anak.&nbsp;</p>\n\n<p>\"Semoga melalui kegiatan ini kita dapat memfasilitasi anak-anak demi pengembangan keterampilan, kreativitas dan bakat mereka,\" ujarnya.</p>\n\n<p>PT Vale juga aktif melakukan kegiatan dalam menanamkan cinta lingkungan sejak dini, seperti mengenalkan kepada anak-anak tentang keanekaragaman hayati, pengelolaan sampah dan kelestarian lingkungan.</p>\n\n<p>\"Kegiatan seperti ini kami laksanakan melalui kerja sama dengan sekolah. Selain itu, kami juga mengampanyekan pengurangan penggunaan plastik kepada para orang tua dengan mendorong mereka memberikan tempat bekal kepada anak saat berangkat ke sekolah,\" jelasnya.[]</p>"}};   // record or null
+const imgFiles = {};           // objectURL/dataURL bookkeeping -> filename to attach
+let imgSeq = 0;
+
+// populate category dropdown
+const sel=document.getElementById('category');
+CATEGORIES.forEach(c=>{ const o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
+
+// rich-text helpers
+function rtCmd(id,cmd,val){ document.getElementById(id).focus(); document.execCommand(cmd,false,val||null); }
+function rtLink(id){ const u=prompt('Link URL (https://… or /indonesia/…):'); if(u) rtCmd(id,'createLink',u); }
+function rtHeading(id){ rtCmd(id,'formatBlock','H2'); }
+function rtImage(id){
+  const inp=document.createElement('input'); inp.type='file';
+  inp.onchange=()=>{ const f=inp.files[0]; if(!f) return;
+    if(!/\.(jpe?g|png|webp|gif)$/i.test(f.name)){ alert('Please choose an image file.'); return; }
+    const rd=new FileReader(); rd.onload=()=>{
+      // embed preview; mark with the real filename so GDI knows what to attach
+      const el=document.getElementById(id); el.focus();
+      document.execCommand('insertHTML',false,
+        '<img src="'+rd.result+'" data-filename="'+f.name+'">');
+      imgFiles[f.name]=true;
+    };
+    rd.readAsDataURL(f);
+  };
+  inp.click();
+}
+
+// cover preview
+document.getElementById('cover').addEventListener('change',function(){
+  const f=this.files[0]; const p=document.getElementById('coverPrev');
+  if(f){ const rd=new FileReader(); rd.onload=()=>{p.src=rd.result;p.style.display='block';}; rd.readAsDataURL(f); window.__coverName=f.name; }
+});
+
+// clean the rich-text HTML into the record body form:
+//  - drop the data-url on images, replace with the served path /documents/d/guest/<slug>-<n>-<ext>
+//  - keep only <p><strong><em><a><h2><h3><ul><li><img>
+function cleanBody(el, slug){
+  const clone=el.cloneNode(true);
+  const imgs=[...clone.querySelectorAll('img')];
+  const attach=[];
+  imgs.forEach(im=>{
+    const fn=im.getAttribute('data-filename')|| ('image-'+(++imgSeq)+'.jpg');
+    const ext=(fn.split('.').pop()||'jpg').toLowerCase();
+    const served='/documents/d/guest/'+slug+'-'+(attach.length+1)+'-'+ext;
+    const np=document.createElement('p'); const ni=document.createElement('img'); ni.setAttribute('src',served);
+    np.appendChild(ni); im.replaceWith(np);
+    attach.push(fn);
+  });
+  return { html: clone.innerHTML, images: attach };
+}
+
+function slugify(t){ return (t||'').toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g,'').trim().replace(/[\s_]+/g,'-').replace(/-+/g,'-').slice(0,240); }
+
+function saveArticle(){
+  const en_title=document.getElementById('en_title').value.trim();
+  const id_title=document.getElementById('id_title').value.trim();
+  const date=document.getElementById('date').value.trim();
+  const category=document.getElementById('category').value;
+  if(!date){ alert('Please set the publish date.'); return; }
+  if(!en_title && !id_title){ alert('Please enter at least one title.'); return; }
+  const slug = (PREFILL&&PREFILL.slug) ? PREFILL.slug : slugify(en_title||id_title);
+
+  const enBody=cleanBody(document.getElementById('en_body'), slug);
+  const idBody=cleanBody(document.getElementById('id_body'), slug);
+  const attachAll=[...new Set([...enBody.images, ...idBody.images, ...(window.__coverName?[window.__coverName]:[])])];
+
+  const rec={
+    slug, date, category,           // intake will fold baseline tags + validate category
+    cover_filename: window.__coverName || "",
+    en:{ title:en_title, subtitle:document.getElementById('en_subtitle').value.trim(), body:enBody.html },
+    id:{ title:id_title, subtitle:document.getElementById('id_subtitle').value.trim(), body:idBody.html }
+  };
+  // drop an empty language entirely
+  if(!rec.en.title && !rec.en.body) delete rec.en;
+  if(!rec.id.title && !rec.id.body) delete rec.id;
+
+  const blob=new Blob([JSON.stringify(rec,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='news-record.json'; a.click();
+  alert('Saved news-record.json to Downloads.\n\n'+
+    (attachAll.length? ('Also attach these image files in the folder:\n- '+attachAll.join('\n- ')) : 'No images.')+
+    '\n\nSend the folder back to GDI.');
+}
+
+// pre-fill from an existing article, if provided
+(function prefill(){
+  if(!PREFILL) { document.getElementById('date').value=""; return; }
+  document.getElementById('date').value=PREFILL.date||"";
+  // pick the operational category (first allow-listed one on the record)
+  const cat=(PREFILL.categories||[]).find(c=>CATEGORIES.includes(c));
+  if(cat) document.getElementById('category').value=cat;
+  ['en','id'].forEach(l=>{ if(PREFILL[l]){
+    document.getElementById(l+'_title').value=PREFILL[l].title||"";
+    document.getElementById(l+'_subtitle').value=PREFILL[l].subtitle||"";
+    document.getElementById(l+'_body').innerHTML=PREFILL[l].body||"";
+  }});
+})();
+</script>
+</body></html>

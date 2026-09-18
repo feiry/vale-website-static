@@ -32,6 +32,20 @@ if [[ ! -d "$SITE_DIR" ]]; then
   exit 1
 fi
 
+# Build static news pages before upload — failure aborts deploy
+echo ">>> Building static news pages (build-news.py)..."
+if ! python3 "$SCRIPT_DIR/build-news.py"; then
+  echo "ERROR: build-news.py failed. Aborting deploy." >&2
+  exit 1
+fi
+
+# Build static Document Library pages before upload — failure aborts deploy
+echo ">>> Building static Document Library pages (build-doc-library.py)..."
+if ! python3 "$SCRIPT_DIR/build-doc-library.py"; then
+  echo "ERROR: build-doc-library.py failed. Aborting deploy." >&2
+  exit 1
+fi
+
 echo ">>> Azure account check"
 az account show --query "{tenant:tenantDefaultDomain, subscription:name, user:user.name}" -o table
 

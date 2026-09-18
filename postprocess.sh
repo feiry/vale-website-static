@@ -16,6 +16,20 @@ else
   SED_INPLACE=(sed -i '')
 fi
 
+# Build static news pages before post-processing HTML
+echo ">>> Building static news pages (build-news.py)..."
+if ! python3 "$(dirname "$0")/build-news.py"; then
+  echo "ERROR: build-news.py failed. Aborting post-processing." >&2
+  exit 1
+fi
+
+# Build static Document Library pages before post-processing HTML
+echo ">>> Building static Document Library pages (build-doc-library.py)..."
+if ! python3 "$(dirname "$0")/build-doc-library.py"; then
+  echo "ERROR: build-doc-library.py failed. Aborting post-processing." >&2
+  exit 1
+fi
+
 echo ">>> Post-processing HTML files..."
 
 # Find all HTML files
@@ -146,31 +160,15 @@ for f in "${HTML_FILES[@]}"; do
 done
 
 # 9b. Collapse UUID filenames: documents/.../image.png/UUID@version=X → documents/.../image.png
-#     S3/CloudFront can't handle @, =, & in key names via HTTP URLs
-echo ">>> Collapsing UUID document filenames..."
-# First collapse files on disk
-find "$SITE_DIR/documents" -type f -path '*@version*' -print0 2>/dev/null | while IFS= read -r -d '' filepath; do
-  parent_dir=$(dirname "$filepath")
-  grandparent=$(dirname "$parent_dir")
-  parent_name=$(basename "$parent_dir")
-  # parent_name is like "image.png" — move the file up as that name
-  newpath="$grandparent/$parent_name"
-  if [[ "$filepath" != "$newpath" ]]; then
-    # Move file to temp location, remove the directory, then rename
-    tmppath="$grandparent/.tmp_collapse_$$"
-    mv -- "$filepath" "$tmppath" 2>/dev/null || continue
-    rm -rf -- "$parent_dir" 2>/dev/null || true
-    mv -- "$tmppath" "$newpath" 2>/dev/null || true
-  fi
-done
-# Also handle &t= files without @version
-find "$SITE_DIR/documents" -type f -name '*&t=*' -print0 2>/dev/null | while IFS= read -r -d '' filepath; do
-  newpath=$(echo "$filepath" | sed -E 's/&t=[0-9]+//')
-  if [[ "$filepath" != "$newpath" ]]; then
-    mkdir -p "$(dirname "$newpath")"
-    mv "$filepath" "$newpath" || true
-  fi
-done
+#     S3/CloudFront/Azure can't handle @, =, & in key names via HTTP URLs.
+#     Delegated to collapse-documents.sh — the previous inline loops did
+#     `mv one file; rm -rf parent_dir`, which silently destroyed sibling files when a
+#     human-filename dir held MULTIPLE versioned entries (data loss; see
+#     docs/crawl-prep/test-collapse.sh for the regression test). The extracted script
+#     keeps the highest version, preserves losing versions as <name>.v<ver>, and never
+#     rm -rf's a dir that could hold unrelated content (e.g. documents/d/guest/*).
+echo ">>> Collapsing UUID document filenames (safe)..."
+"$(dirname "$0")/collapse-documents.sh" "$SITE_DIR"
 # Now fix HTML references: strip /UUID@version=X(&t=...) from document URLs
 for f in "${HTML_FILES[@]}"; do
   # src="/documents/.../image.png/UUID@version=X&amp;t=..." → src="/documents/.../image.png"

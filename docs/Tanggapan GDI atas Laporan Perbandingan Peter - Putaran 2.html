@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tanggapan GDI atas Laporan Perbandingan Peter — Putaran 2</title>
+<style>
+body { font-family: 'Source Sans 3', -apple-system, Segoe UI, Roboto, sans-serif; color:#1a1a1a; line-height:1.55; max-width:960px; margin:2rem auto; padding:0 1.25rem; }
+h1 { color:#00694e; font-size:1.7rem; margin-bottom:.2rem; }
+h2 { color:#00694e; margin-top:2rem; border-bottom:2px solid #e3efe9; padding-bottom:.3rem; font-size:1.2rem; }
+h3 { color:#00694e; font-size:1.02rem; margin-top:1.4rem; margin-bottom:.3rem; }
+.sub { color:#666; margin-top:0; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; font-size:.93rem; }
+th, td { border:1px solid #d8e2dd; padding:.5rem .6rem; text-align:left; vertical-align:top; }
+th { background:#f1f7f4; }
+.fixed { color:#0a7d33; font-weight:600; }
+.noact { color:#8a6d00; font-weight:600; }
+.win { color:#0a5ad6; font-weight:600; }
+.live { color:#b00020; font-weight:600; }
+code { background:#f4f4f4; padding:.05rem .3rem; border-radius:3px; font-size:.85em; }
+.legend span { margin-right:1.2rem; }
+.note { background:#fff8e6; border-left:4px solid #e0b400; padding:.6rem .9rem; margin:1rem 0; font-size:.92rem; }
+.ok { background:#eefaf0; border-left:4px solid #0a7d33; padding:.6rem .9rem; margin:1rem 0; font-size:.92rem; }
+ul { margin:.3rem 0 .8rem; }
+</style>
+</head>
+<body>
+
+<h1>Tanggapan GDI atas Laporan Perbandingan Live vs Staging — Putaran 2</h1>
+<p class="sub">Menanggapi "Laporan Perbandingan Live vs Staging PT Vale Indonesia (konsolidasi 5 September 2026)" dari Peter. Disusun 6 September 2026. Setiap temuan diverifikasi ulang langsung ke live & staging; seluruh perbaikan sudah di-deploy ke <b>produksi</b> (www.valeindonesia.com) dan diverifikasi.</p>
+
+<div class="ok">
+<b>Ringkasan:</b> Dari seluruh temuan putaran ke-2 ini, <b>3 kelompok perbaikan nyata sudah dikerjakan &amp; live di produksi</b> (kategori Quarterly Reports, kelengkapan Siaran Pers, dan label tombol berbahasa Inggris di 2 halaman ID). Sisanya sudah dipastikan: bug di sisi <b>live</b> (staging sudah benar), memang <b>disengaja</b>, atau <b>staging justru lebih baik dari live</b>. Tidak ada temuan yang menyisakan pekerjaan di sisi staging.
+</div>
+
+<p class="legend">
+<span class="fixed">✔ Diperbaiki &amp; live di prod</span>
+<span class="noact">◦ Tidak perlu tindakan</span>
+<span class="win">★ Staging lebih baik dari live</span>
+<span class="live">⚠ Bug di sisi live</span>
+</p>
+
+<h2>A. Diperbaiki GDI &amp; sudah live di produksi</h2>
+
+<h3>A1. Kategori "Quarterly Reports" (Laporan Kuartalan) — kini tersedia di staging</h3>
+<p>Temuan Peter: live punya kategori "Quarterly Reports" (55 dokumen per bahasa) yang tidak ada sebagai tab di staging.</p>
+<table>
+<tr><th>Aspek</th><th>Tindakan GDI</th><th>Status</th></tr>
+<tr>
+<td>Kategori &amp; dokumen</td>
+<td>Kategori baru <b>"Laporan Kuartalan" / "Quarterly Reports"</b> ditambahkan ke Doc Library (chip + section, ID &amp; EN). Seluruh <b>110 dokumen</b> (Production Report + Results Release, 2018–2026, kedua bahasa) di-unduh dari live dan ditambahkan. Tampil <b>55 dokumen di halaman ID, 53 di halaman EN</b>, urut terbaru-ke-terlama.</td>
+<td class="fixed">✔ Live di prod</td>
+</tr>
+<tr>
+<td>Catatan bahasa</td>
+<td>2 berkas di folder EN live sebenarnya bertitel "Bahasa" (kekeliruan penempatan di sisi live). Di staging kami tandai sesuai <b>judul</b> (bukan folder), jadi halaman EN hanya menampilkan dokumen berbahasa Inggris — sedikit lebih rapi dari live.</td>
+<td class="win">★ Lebih baik</td>
+</tr>
+</table>
+
+<h3>A2. Kelengkapan "Siaran Pers &amp; Pengumuman" — sinkron dengan live</h3>
+<table>
+<tr><th>Temuan Peter</th><th>Tindakan GDI</th><th>Status</th></tr>
+<tr>
+<td>Staging kurang ±2 Siaran Pers per bahasa dibanding live (EN 63 vs 65, BH 57 vs 59).</td>
+<td>5 berkas PDF yang sudah ada di server namun belum terdaftar kini didaftarkan. Jumlah kini <b>EN 66 / BH 59</b> — cocok dengan live (EN 65/BH 59; selisih +1 EN adalah 1 dokumen "Domain Change Notice" versi lokal, jadi staging superset, bukan kurang).</td>
+<td class="fixed">✔ Live di prod</td>
+</tr>
+</table>
+
+<h3>A3. Teks tombol berbahasa Inggris di 2 halaman versi Indonesia — diterjemahkan</h3>
+<p>Temuan Peter: tombol/heading berbahasa Inggris "nyelip" di halaman ID (identik di live). Atas arahan GDI, diperbaiki (kami pilih memperbaiki, tidak menyalin kesalahan live).</p>
+<table>
+<tr><th>Halaman</th><th>Sebelum → Sesudah</th><th>Status</th></tr>
+<tr>
+<td>Pengelolaan Air dan Limbah Cair (ID)</td>
+<td>
+"Find out more" → <b>Pelajari lebih lanjut</b><br>
+"Click here to see our post mining rehabilitation" → <b>Lihat rehabilitasi pascatambang kami</b><br>
+"Check out our waste management" → <b>Lihat pengelolaan limbah kami</b><br>
+"See our emission program" → <b>Lihat program emisi kami</b><br>
+"Learn more our biodiversity" → <b>Pelajari keanekaragaman hayati kami</b>
+</td>
+<td class="fixed">✔ Live di prod</td>
+</tr>
+<tr>
+<td>Taman Kehati Sawerigading Wallacea (ID)</td>
+<td>"See our Map" → <b>Lihat Peta Kami</b></td>
+<td class="fixed">✔ Live di prod</td>
+</tr>
+</table>
+
+<h2>B. Tidak perlu tindakan — staging sudah benar / bug di sisi live</h2>
+<p>Temuan yang ditandai Peter "masih bermasalah, belum ditindaklanjuti GDI" — setelah diverifikasi ulang, ini bukan masalah di sisi staging:</p>
+<table>
+<tr><th>Temuan Peter</th><th>Hasil verifikasi GDI</th><th>Status</th></tr>
+<tr>
+<td>Menu "Life at PT Vale Indonesia" → slug basi "-old" (ID &amp; EN)</td>
+<td>Bug menautkan slug di menu <b>live</b>; staging sudah menunjuk slug terkini yang benar.</td>
+<td class="live">⚠ Sisi live</td>
+</tr>
+<tr>
+<td>URL versi Inggris diam-diam redirect ke versi Indonesia (berbasis sesi)</td>
+<td>Logika locale berbasis sesi hanya ada di <b>live</b> (situs dinamis). Staging statis: URL <code>.html</code> EN selalu memuat konten EN. Tidak terjadi di staging.</td>
+<td class="live">⚠ Sisi live</td>
+</tr>
+<tr>
+<td>37 tombol "+" timeline "Sejarah Vale di Indonesia" tidak merespons</td>
+<td>Rusak hanya di <b>live</b> (versi ID); di staging tombol berfungsi normal (teks terbuka, ikon +→−).</td>
+<td class="live">⚠ Sisi live</td>
+</tr>
+<tr>
+<td>Manajemen Risiko / Sistem Pelaporan Pelanggaran / Integritas Bisnis / Risk Management (EN) / Corporate Secretary &amp; Whistleblowing (EN) — beberapa link dokumen 404</td>
+<td>Link-link ini <b>404 di live</b> tetapi <b>200 OK di staging</b> (dokumen tersedia di staging). Staging justru lebih baik.</td>
+<td class="win">★ Staging lebih baik</td>
+</tr>
+<tr>
+<td>"Taman Kehati Sawerigading Wallacea" halaman yatim (orphan) di live</td>
+<td>Masalah penautan menu di <b>live</b>; staging sudah menautkannya di menu ☰.</td>
+<td class="win">★ Staging lebih baik</td>
+</tr>
+<tr>
+<td>"Residue Management (Tailings)" &amp; "Resettlement" tidak ditemukan di ekstraksi menu staging</td>
+<td>Kedua halaman <b>ada &amp; 200 OK di staging</b>, dan tertaut dari halaman Keberlanjutan (slug ID <code>pengelolaan-residu-tailing.html</code>). Ekstraksi otomatis tidak cocok karena beda slug ID vs EN. Bukan halaman hilang.</td>
+<td class="noact">◦ Sudah ada</td>
+</tr>
+</table>
+
+<h2>C. Temuan yang identik di live &amp; staging (masalah konten sisi Vale)</h2>
+<p>Temuan "rusak di kedua situs" — bukan cacat kloning (staging setia mengikuti live). Dibiarkan agar tetap sesuai live; direkomendasikan diperbaiki di sumber (Comms/Vale):</p>
+<table>
+<tr><th>#</th><th>Temuan</th><th>Catatan</th></tr>
+<tr>
+<td>1</td>
+<td>Tombol "Unduh Briefing Book" duplikat (1 dari 2 link → 404) di "Tentang PT Vale"</td>
+<td>Tombol ke-2 (<code>/documents/ptvi-briefing-book-ina</code>) 404 di kedua situs; tombol utama berfungsi. Identik di live.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Tombol "Learn more about our Approach and Governance" (Komunitas Lokal) href kosong</td>
+<td><code>href=""</code> di kedua situs (Vale belum mengisi tujuan). Identik di live.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Link "Antitrust Policy" &amp; "Climate Change Policy" tersembunyi (0×0) di "Kebijakan Kami"</td>
+<td>Render 0×0 di kedua situs (quirk CSS Vale). Catatan: dokumen PDF-nya <b>404 di live tapi 200 OK di staging</b> — jadi staging sebenarnya lebih lengkap.</td>
+</tr>
+</table>
+
+<div class="note">
+<b>Catatan untuk Vale/Comms (di luar kendali staging):</b> Item Bagian C di atas (tombol Briefing Book 404, tombol Komunitas href kosong, link kebijakan 0×0) berasal dari konten/CMS di sisi <b>live</b> dan juga terbawa ke staging saat kloning. Disarankan Comms merapikannya di sumber agar perbaikan otomatis ikut ter-kloning ke staging berikutnya. Beberapa temuan lain (arsip Documents &amp; Reports EN "rusak total", link locale Keanekaragaman Hayati) sudah <b>tidak terbukti lagi</b> saat Peter verifikasi ulang — konsisten dengan catatan bahwa sebagian temuan lama sudah usang.
+</div>
+
+<p class="sub" style="margin-top:2rem">Seluruh perbaikan Bagian A sudah diverifikasi langsung di produksi (www.valeindonesia.com) — halaman &amp; berkas menyajikan HTTP 200, tipe konten benar, jumlah dokumen sesuai. — GDI, 6 September 2026.</p>
+
+</body>
+</html>
