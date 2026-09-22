@@ -27,6 +27,7 @@ class Config:
     COMMS_ALLOWLIST = [x.strip() for x in os.environ.get("PTVI_COMMS_ALLOWLIST", "").split(",") if x.strip()]
 
     # --- Request source ---
-    # Where request folders are fetched from. For the PoC this can be a local path on the VM;
-    # in production it's the SharePoint library read via Graph. See requests.py.
+    # If PTVI_REQUEST_GROUP_ID is set, requests are read from that Teams team's SharePoint
+    # library via Graph (production path). Otherwise the local folder below is used (PoC).
+    REQUEST_GROUP_ID = os.environ.get("PTVI_REQUEST_GROUP_ID", "")
     REQUESTS_ROOT = os.environ.get("PTVI_REQUESTS_ROOT", os.path.expanduser("~/ptvi-bot/requests"))
