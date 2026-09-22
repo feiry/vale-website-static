@@ -86,6 +86,14 @@ async def on_message(turn: TurnContext):
 
     if intent.kind in ("process", "approve_prod"):
         target = "prod" if intent.kind == "approve_prod" else "dev"
+        # Prod deploy is not wired in this test build (awaiting Vale storage grant). Rather than
+        # run a confusing no-op "prod" pass, tell the tester clearly and stop.
+        if target == "prod":
+            await turn.send_activity(
+                "Prod publishing isn't enabled in this test build yet — the dev preview is the "
+                "end of the flow for now. (Production deploy activates once the Vale storage "
+                "access is granted.)")
+            return
         rid, folder = rs.resolve(intent.request_id)
         if not folder:
             pending = rs.list_submitted()
