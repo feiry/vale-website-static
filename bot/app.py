@@ -31,7 +31,7 @@ import requests_source as rs       # noqa: E402
 from agent import parse_intent     # noqa: E402
 
 
-DEV_BASE = "https://stidstaticsite002.z23.web.core.windows.net"  # dev preview base (PoC)
+DEV_BASE = "https://stptviwebbotpoc.z23.web.core.windows.net"  # PoC dev preview (PTGDI storage; swap to Vale stidstaticsite002 when grant lands)
 PROD_BASE = "https://www.valeindonesia.com"
 
 
@@ -96,7 +96,9 @@ async def on_message(turn: TurnContext):
 
         await turn.send_activity(
             f"{'Deploying to prod' if target=='prod' else 'Processing'}: {rid} …")
-        result = op.process(rid, str(folder), target=target)
+        # PoC: actually deploy to dev (PTGDI storage). Prod deploy stays gated until the
+        # Vale storage grant lands, so only enable real deploy for the dev target here.
+        result = op.process(rid, str(folder), target=target, deploy=(target == "dev"))
 
         stages = [{"stage": s.stage, "status": s.status, "rc": s.exit_code} for s in result.stages]
         if target == "prod" and result.ok:

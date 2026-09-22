@@ -1,0 +1,36 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "1.0.0",
+  "id": "119b0d4b-3785-4631-860b-e30696ab299c",
+  "packageName": "com.ptgdi.ptvi.websitesupport",
+  "developer": {
+    "name": "PT Global Dinamika Informatika",
+    "websiteUrl": "https://www.valeindonesia.com",
+    "privacyUrl": "https://www.valeindonesia.com/privacy",
+    "termsOfUseUrl": "https://www.valeindonesia.com/terms"
+  },
+  "name": {
+    "short": "PTVI Website Support",
+    "full": "Valeindonesia.com Website Support Bot"
+  },
+  "description": {
+    "short": "Publish valeindonesia.com updates via chat.",
+    "full": "Submit and publish website updates (news, documents, vacancies) to valeindonesia.com with a dev preview and prod approval gate. Access restricted to the COMMs team."
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "accentColor": "#004B87",
+  "bots": [
+    {
+      "botId": "119b0d4b-3785-4631-860b-e30696ab299c",
+      "scopes": ["personal", "team", "groupChat"],
+      "supportsFiles": false,
+      "isNotificationOnly": false
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": ["ptvi-webbot.southeastasia.cloudapp.azure.com"]
+}

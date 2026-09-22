@@ -30,8 +30,25 @@ _PROCESS = re.compile(r"\b(process|publish|build|deploy|jalankan|proses)\b", re.
 _APPROVE = re.compile(r"\b(approve|setuju|go\s*live|deploy\s+prod|to\s+prod|ke\s+prod)\b", re.I)
 _STATUS = re.compile(r"\b(status|pending|what.?s\s+pending|antrian|apa\s+yang)\b", re.I)
 _HELP = re.compile(r"\b(help|bantuan|what\s+can\s+you|commands?)\b", re.I)
-# grab an explicit request id if the user typed one (folder-name-ish token)
-_RID = re.compile(r"\b(?:request|req|folder|loker|id)\s*[:#]?\s*([A-Za-z0-9._\-]{3,})", re.I)
+# grab an explicit request id if the user typed one (folder-name-ish token).
+# The keyword must be a WHOLE word (\b after it) so "request" isn't read as "req"+"uest".
+# We accept an id either after an explicit "id:"/"request #" separator, OR a token that
+# actually looks like a folder id (contains a hyphen/dot/digit — not a plain English word).
+_RID_LABELLED = re.compile(r"\b(?:request|req|folder|loker|id)\b\s*[:#]\s*([A-Za-z0-9._\-]{3,})", re.I)
+_RID_SLUGLIKE = re.compile(r"\b([a-z0-9]+(?:[-.][a-z0-9]+){1,}[A-Za-z0-9._\-]*)", re.I)
+# never treat these as an id if they slip through
+_RID_STOP = {"the", "this", "that", "request", "req", "folder", "loker", "please", "tolong", "ini"}
+
+
+def _extract_rid(t: str) -> Optional[str]:
+    m = _RID_LABELLED.search(t)
+    if m and m.group(1).lower() not in _RID_STOP:
+        return m.group(1)
+    # a slug-like token (has a hyphen/dot, e.g. "sample-news-demo") is very likely the id
+    m = _RID_SLUGLIKE.search(t)
+    if m and m.group(1).lower() not in _RID_STOP:
+        return m.group(1)
+    return None
 
 
 def parse_intent(text: str, value: Optional[dict] = None) -> Intent:
@@ -43,8 +60,7 @@ def parse_intent(text: str, value: Optional[dict] = None) -> Intent:
     if not t:
         return Intent(kind="unknown")
 
-    rid_match = _RID.search(t)
-    rid = rid_match.group(1) if rid_match else None
+    rid = _extract_rid(t)
 
     if _APPROVE.search(t):
         return Intent(kind="approve_prod", request_id=rid, target="prod")

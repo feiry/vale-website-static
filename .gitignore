@@ -64,3 +64,4 @@ docs/latest-templates/
 *.p12
 operator-audit.log
 .operator.lock
+deploy/teams-app/*.zip
