@@ -211,8 +211,50 @@ def detect_type(folder: Path) -> tuple[Optional[str], Optional[Path]]:
 # The pipeline
 # --------------------------------------------------------------------------- #
 
+# listing pages the news build always refreshes (verify these too)
+_NEWS_LISTINGS = [
+    "/indonesia/all-news.html",
+    "/in/indonesia/all-news.html",
+]
+
+
+def _auto_deployer(result: OperatorResult):
+    """
+    Build a real deployer from the run's output. Parses the `EN:`/`ID:` output-URL lines the
+    intake script printed (the authoritative changed article paths) and adds the news listing
+    pages. Maps each URL path to its on-disk file under site/vale.com. Returns None if no URLs
+    were found (nothing to deploy).
+    """
+    import deployer as dep_mod
+
+    site_root = REPO_ROOT / dep_mod.SITE_ROOT_REL
+    paths: list[str] = []
+    title_needle = None
+    for st in result.stages:
+        for line in (st.stdout_tail or "").splitlines():
+            line = line.strip()
+            if line.startswith(("EN:", "ID:")) and "/" in line:
+                paths.append(line.split(":", 1)[1].strip())
+    # de-dupe, keep article paths + always-refreshed listings
+    seen = set()
+    all_paths = []
+    for p in paths + (_NEWS_LISTINGS if result.request_type == "news" else []):
+        if p not in seen:
+            seen.add(p)
+            all_paths.append(p)
+    if not all_paths:
+        return None
+
+    # local file for a URL path: strip leading '/', join under site/vale.com
+    changed_files = [(site_root / p.lstrip("/"), p.lstrip("/")) for p in all_paths]
+    # verify: article pages get a content needle (their own path is enough as a smoke check);
+    # listings just need 200. Keep needle None to avoid brittle title matching across chrome.
+    verify_urls = [(p, None) for p in all_paths]
+    return dep_mod.make_deployer(REPO_ROOT, changed_files, verify_urls)
+
+
 def process(request_id: str, folder: str | os.PathLike, target: str = "dev",
-            apply: bool = True, deployer=None) -> OperatorResult:
+            apply: bool = True, deployer=None, deploy: bool = False) -> OperatorResult:
     """
     Run the deterministic pipeline for one request folder.
 
@@ -221,7 +263,9 @@ def process(request_id: str, folder: str | os.PathLike, target: str = "dev",
     target     : "dev" or "prod" — controls where the deploy step publishes
     apply      : if False, stop after a successful dry-run (preview only, no writes)
     deployer   : optional callable(target, result) -> StageResult for the deploy step.
-                 If None, deploy+verify are reported as PLANNED (not yet wired to Vale storage).
+                 If None and deploy=True, one is auto-built from the run's output URLs
+                 (see _auto_deployer). If None and deploy=False, deploy+verify report PLANNED.
+    deploy     : if True, actually deploy+verify (needs `az login --identity` active + RBAC).
 
     Returns an OperatorResult; also appends a line to operator-audit.log.
     """
@@ -306,13 +350,16 @@ def process(request_id: str, folder: str | os.PathLike, target: str = "dev",
                 ))
 
             # 5) DEPLOY + 6) VERIFY -----------------------------------------
+            if deployer is None and deploy:
+                deployer = _auto_deployer(result)  # build change-set from the run's output URLs
+
             if deployer is None:
                 result.stages.append(StageResult(
                     Stage.DEPLOY, Status.PLANNED,
-                    detail=f"deploy to {target} not wired yet (awaiting Vale storage grant)"))
+                    detail=f"deploy to {target} not requested (deploy=False)"))
                 result.stages.append(StageResult(
-                    Stage.VERIFY, Status.PLANNED, detail="verify runs after deploy is wired"))
-                return finish(True, f"{rtype} applied + built locally; deploy to {target} PLANNED (not yet wired)")
+                    Stage.VERIFY, Status.PLANNED, detail="pass deploy=True to publish + verify"))
+                return finish(True, f"{rtype} applied + built locally; deploy to {target} PLANNED (deploy=False)")
 
             dep = deployer(target, result)
             result.stages.append(dep)
@@ -368,10 +415,12 @@ def _cli(argv: list) -> int:
     ap.add_argument("--request-id", default=None, help="id for logging (default: folder name)")
     ap.add_argument("--target", choices=["dev", "prod"], default="dev")
     ap.add_argument("--preview", action="store_true", help="dry-run only, do not apply/build")
+    ap.add_argument("--deploy", action="store_true",
+                    help="publish to blob storage + verify (needs `az login --identity` + RBAC)")
     args = ap.parse_args(argv)
 
     rid = args.request_id or Path(args.folder).resolve().name
-    res = process(rid, args.folder, target=args.target, apply=not args.preview)
+    res = process(rid, args.folder, target=args.target, apply=not args.preview, deploy=args.deploy)
     print(res.to_json())
     return 0 if res.ok else 1
 
