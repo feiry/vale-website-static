@@ -329,6 +329,16 @@ def process(request_id: str, folder: str | os.PathLike, target: str = "dev",
         return finish(False, "a step timed out")
 
 
+def _audit_line(obj: dict) -> None:
+    """Append an arbitrary JSON event to the audit log (used by the bot for auth events)."""
+    try:
+        obj = {"at": _now(), **obj}
+        with open(AUDIT_LOG, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(obj, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
+
 def _audit(result: OperatorResult) -> None:
     """One JSON line per run — the deterministic audit trail the plan requires."""
     try:

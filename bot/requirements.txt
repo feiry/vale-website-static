@@ -1,0 +1,6 @@
+# Bot Framework SDK (single-tenant support since Apr 2024) + aiohttp integration
+botbuilder-core>=4.16.0
+botbuilder-integration-aiohttp>=4.16.0
+aiohttp>=3.9
+# Graph membership check + managed-identity token via IMDS
+requests>=2.31

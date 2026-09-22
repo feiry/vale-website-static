@@ -1,0 +1,140 @@
+"""
+PTVI website-support bot — aiohttp listener + Teams activity handler.
+
+Flow (see design doc §Flow):
+  message ──▶ Layer-2 auth (auth.is_authorised) ──▶ parse_intent ──▶ operator ──▶ Adaptive Card
+
+The bot never deploys by itself: it calls the deterministic operator (operator_svc.process) and
+reports the structured result. Prod deploy requires an explicit Approve (card button / message)
+AND passes the SAME auth gate as processing.
+"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+from aiohttp import web
+from aiohttp.web import Request, Response
+from botbuilder.core import TurnContext
+from botbuilder.core.integration import aiohttp_error_middleware
+from botbuilder.integration.aiohttp import CloudAdapter, ConfigurationBotFrameworkAuthentication
+from botbuilder.schema import Activity, Attachment
+
+# operator lives in the sibling operator/ package
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "operator"))
+import operator_svc as op  # noqa: E402
+
+from config import Config          # noqa: E402
+import auth                        # noqa: E402
+import cards                       # noqa: E402
+import requests_source as rs       # noqa: E402
+from agent import parse_intent     # noqa: E402
+
+
+DEV_BASE = "https://stidstaticsite002.z23.web.core.windows.net"  # dev preview base (PoC)
+PROD_BASE = "https://www.valeindonesia.com"
+
+
+def _preview_links(result: "op.OperatorResult") -> list[str]:
+    """Best-effort preview URLs pulled from the intake dry-run/apply output."""
+    links: list[str] = []
+    for st in result.stages:
+        for line in (st.stdout_tail or "").splitlines():
+            line = line.strip()
+            if line.startswith(("EN:", "ID:")) and "/" in line:
+                path = line.split(":", 1)[1].strip()
+                links.append(DEV_BASE + path)
+    return links[:6]
+
+
+async def _reply_card(turn: TurnContext, card: dict):
+    await turn.send_activity(Activity(
+        type="message",
+        attachments=[Attachment(content_type=card["contentType"], content=card["content"])],
+    ))
+
+
+async def on_message(turn: TurnContext):
+    act = turn.activity
+    sender_oid = None
+    if act.from_property and act.from_property.aad_object_id:
+        sender_oid = act.from_property.aad_object_id
+
+    # --- Layer 2: verify sender on EVERY message, before any action ---
+    allowed, reason = auth.is_authorised(sender_oid)
+    op._audit_line({"event": "auth", "sender": sender_oid, "allowed": allowed, "reason": reason})
+    if not allowed:
+        await turn.send_activity("You're not authorized to submit website requests.")
+        return
+
+    intent = parse_intent(act.text or "", act.value)
+
+    if intent.kind == "help":
+        await _reply_card(turn, cards.text_card("Website support bot", [
+            "• **process the request** — build the pending request and deploy to dev preview",
+            "• **what's pending?** — list submitted requests",
+            "• **approve** — after reviewing dev, deploy to production",
+        ]))
+        return
+
+    if intent.kind == "status":
+        pending = rs.list_submitted()
+        await _reply_card(turn, cards.text_card(
+            "Pending requests",
+            [f"• {p}" for p in pending] or ["(none in 1-Submitted)"]))
+        return
+
+    if intent.kind in ("process", "approve_prod"):
+        target = "prod" if intent.kind == "approve_prod" else "dev"
+        rid, folder = rs.resolve(intent.request_id)
+        if not folder:
+            pending = rs.list_submitted()
+            hint = ("no submitted requests found" if not pending else
+                    "name which request: " + ", ".join(pending))
+            await turn.send_activity(f"Couldn't pick a request — {hint}.")
+            return
+
+        await turn.send_activity(
+            f"{'Deploying to prod' if target=='prod' else 'Processing'}: {rid} …")
+        result = op.process(rid, str(folder), target=target)
+
+        stages = [{"stage": s.stage, "status": s.status, "rc": s.exit_code} for s in result.stages]
+        if target == "prod" and result.ok:
+            await _reply_card(turn, cards.live_card(rid, [PROD_BASE]))
+        else:
+            await _reply_card(turn, cards.result_card(
+                rid, result.request_type, result.ok, result.message,
+                _preview_links(result), stages))
+        return
+
+    # unknown
+    await turn.send_activity(
+        "I didn't catch that. Try “process the request”, “what's pending?”, or “help”.")
+
+
+# --- adapter + web app ---
+ADAPTER = CloudAdapter(ConfigurationBotFrameworkAuthentication(Config))
+
+
+async def messages(req: Request) -> Response:
+    return await ADAPTER.process(req, _BOT)
+
+
+class _Bot:
+    async def on_turn(self, turn: TurnContext):
+        if turn.activity.type == "message":
+            await on_message(turn)
+
+
+_BOT = _Bot()
+
+
+def create_app() -> web.Application:
+    app = web.Application(middlewares=[aiohttp_error_middleware])
+    app.router.add_post("/api/messages", messages)
+    app.router.add_get("/healthz", lambda r: web.Response(text="ok"))
+    return app
+
+
+if __name__ == "__main__":
+    web.run_app(create_app(), host=Config.HOST, port=Config.PORT)
