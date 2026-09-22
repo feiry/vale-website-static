@@ -62,3 +62,5 @@ docs/latest-templates/
 *.pem
 *.key
 *.p12
+operator-audit.log
+.operator.lock

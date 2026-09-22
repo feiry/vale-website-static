@@ -1,30 +1,38 @@
 # Website Update Pipeline — Azure VM + Teams Design
 
-**Date:** 2026-09-15
+**Date:** 2026-09-15 (updated 2026-09-21)
 **Status:** Design (approved in principle by Feiry; for Sandy / IT / EY review)
+
+> **Hosting update (2026-09-21):** Both the **Azure Bot AND the Teams channel** now live
+> in the **PTGDI tenant**. COMMs users are **invited as guests into a PTGDI Team** rather
+> than the bot being sideloaded into a Vale-owned Team. This keeps the bot single-tenant
+> (PTGDI-only), removes the cross-tenant Teams-app-install dependency on Vale IT, and means
+> the request channel + SharePoint library are PTGDI-owned. Access control and several open
+> questions below are revised accordingly.
 **Supersedes:** the earlier Mac + Telegram + OneDrive-mirror sketch (rejected — Telegram
 is not company-standard, and macOS TCC blocks a background process from reading
 `~/Library/CloudStorage` reliably).
 
 ## Why this shape
 
-Moving the operator to an **Azure VM in Vale's tenant** and talking over **Microsoft
+Moving the operator to an **Azure VM in the PTGDI tenant** and talking over **Microsoft
 Teams** removes every constraint we hit on the Mac and matches company standards:
 
 - No macOS TCC / OneDrive file-access problem — a VM reads files via Microsoft Graph.
 - A real always-on host with a public HTTPS endpoint (required by the Teams Bot Framework).
-- One Azure AD identity for the bot, the file reads, and the storage deploys.
-- Company-standard (Teams, Azure), IT-approvable, next to the existing dev/prod storage.
+- One PTGDI Azure AD identity for the bot and the file reads; the storage deploys use a
+  cross-tenant grant onto Vale's storage (the one Vale-side dependency — see Q2).
+- Company-standard (Teams, Azure), IT-approvable.
 
 ## Architecture
 
 ```
-COMMs ──> Teams channel "Valeindonesia.com Update - Request"
-          SharePoint doc library: _Templates / 1-Submitted / 2-In-Progress / 3-Done-Deployed
+COMMs (guests) ──> PTGDI Teams channel "Valeindonesia.com Update - Request"
+          SharePoint doc library (PTGDI): _Templates / 1-Submitted / 2-In-Progress / 3-Done-Deployed
              │
              │  Microsoft Graph API (app identity)         Teams Bot Framework
              ▼                                                    ▲
-     ┌────────────────────────── Azure VM (Vale tenant) ─────────┴──────────┐
+     ┌────────────────────────── Azure VM (PTGDI tenant) ────────┴──────────┐
      │  Teams Bot endpoint  ──►  Claude agent (conversation only)           │
      │                              │ decides WHEN                          │
      │                              ▼                                       │
@@ -33,9 +41,9 @@ COMMs ──> Teams channel "Valeindonesia.com Update - Request"
      │    dev  →  (await approval)  →  deploy prod                          │
      │    workflow scripts: intake-to-*, build-*, vacancy tools (this repo) │
      └───────────────────────────────┬──────────────────────────────────────┘
-                                      │ az / Graph
+                                      │ az / Graph (cross-tenant RBAC onto Vale storage)
                                       ▼
-                 dev storage (stidstaticsite002)   prod storage (stidstaticsiteprod)
+        Vale tenant:  dev storage (stidstaticsite002)   prod storage (stidstaticsiteprod)
 ```
 
 ### Components
@@ -62,15 +70,21 @@ COMMs ──> Teams channel "Valeindonesia.com Update - Request"
 
 ### Identity & auth (one Azure AD app)
 
-- **Graph**: `Sites.Selected` (scoped to the one request library) to list/read/`3-Done` move.
+- **Graph**: `Sites.Selected` scoped to the one **PTGDI-owned** request library to
+  list/read/`3-Done` move. Consent is granted by a **PTGDI admin** (same tenant as the app)
+  — no cross-tenant Vale grant needed.
 - **Storage**: Storage Blob Data Contributor on dev + prod accounts (prod via PIM or a
   dedicated deploy identity — TBD with IT; PIM's human-MFA model may not suit an unattended
-  VM, so a scoped managed identity for prod deploys is likely cleaner. **Open question.**)
-- **Bot**: Azure Bot resource; VM holds the app password / cert.
+  VM, so a scoped managed identity for prod deploys is likely cleaner. This is the **one
+  remaining cross-tenant grant**: the PTGDI principal still needs RBAC on Vale's storage
+  accounts. **Open question.**)
+- **Bot**: Azure Bot resource in PTGDI; **single-tenant** (PTGDI-only) is now sufficient
+  since COMMs join as PTGDI guests. VM holds the app password / cert.
 
 ## Flow
 
-1. COMMs drops a request folder in Teams `1-Submitted/` (unchanged authoring; same forms).
+1. COMMs (as PTGDI guests) drop a request folder in the PTGDI Teams `1-Submitted/`
+   (unchanged authoring; same forms).
 2. COMMs/GDI: **"process the loker request"** in the Teams channel.
 3. Agent → operator: read via Graph → detect → dry-run → apply → build → **deploy dev** →
    verify. Agent posts an Adaptive Card: *"On dev: <preview links>. [Approve for prod]"*.
@@ -84,7 +98,8 @@ COMMs ──> Teams channel "Valeindonesia.com Update - Request"
 - **Dry-run before every apply**; any validation error stops and reports.
 - **Deploy path is deterministic** (operator service), not the LLM — full audit log per action.
 - **Verify after every deploy** (200 + content grep); failures surfaced, never hidden.
-- **Authorized approvers only** (named COMMs/GDI in the channel) can trigger prod.
+- **Authorized approvers only** — verified by `PTVI-Website-COMMs` AD-group membership
+  (not merely channel presence) — can trigger prod.
 - **One request at a time**, tracked; no double-deploy.
 - **Least-privilege identity**; prod deploy credential scoped and logged.
 
@@ -93,25 +108,34 @@ COMMs ──> Teams channel "Valeindonesia.com Update - Request"
 The `ptvi-website-support` bot must be usable **only by the COMMs team**, not anyone in
 the Vale tenant. Enforced in two independent layers (defense in depth):
 
-**Layer 1 — Teams-side scoping (Vale IT controls).**
-- The bot is added to a **single Team/channel** ("Valeindonesia.com Update – Request")
-  whose members are the COMMs team; people outside that channel can't message it.
-- Vale's **Teams admin app-permission policy** makes the app available only to a specific
-  Azure AD group (e.g. `PTVI-Website-COMMs`) — others don't see or get the app.
-- This is standard corporate Teams-app governance; IT decides who receives the app.
+**Layer 1 — Teams-side scoping (PTGDI controls).**
+- The bot lives in a **single PTGDI Team/channel** ("Valeindonesia.com Update – Request");
+  COMMs join that Team as **guests (B2B)**. Only members + invited guests of that Team can
+  message the bot; the bot is single-tenant to PTGDI and isn't exposed to Vale's tenant at
+  large. **PTGDI (not Vale IT)** now controls who is invited as a guest.
+- Guest invitations are the roster control: only the specific COMMs people PTGDI invites
+  get into the channel. This replaces the previous "Vale Teams admin sideloads the app +
+  app-permission policy" step.
+- **Note:** guests cannot install Teams apps themselves, so a **PTGDI member** (team owner)
+  installs the `ptvi-website-support` app into the team once; guests then message it normally.
+  Also requires **guest access enabled** in the PTGDI Teams admin center + **external
+  collaboration** allowing the invites (see Q4).
 
 **Layer 2 — Operator-side verification (our code enforces — the load-bearing layer).**
 Even inside the channel, the operator **verifies the sender's identity on every message**
 before acting — Teams/Bot Framework supplies each message's **verified Azure AD identity**
-(sender AAD object ID / email), which cannot be spoofed. The operator:
+(sender AAD object ID / email, including the guest identity), which cannot be spoofed. The
+operator:
 - Checks the sender against an **authorized-COMMs allowlist** — implemented as membership
-  of an **Azure AD group** (`PTVI-Website-COMMs`), checked via Graph, so IT manages the
+  of a **PTGDI-side Azure AD group** (`PTVI-Website-COMMs`) that lists the invited COMMs
+  guests, checked via Graph. Because the group lives in PTGDI (same tenant as the app), the
+  membership read is **same-tenant** — no cross-tenant Graph consent needed. GDI manages the
   roster in one place with no code change.
 - **Refuses** any sender not in the group ("You're not authorized to submit website requests").
 - Applies the check to **both** actions: **submitting/processing** a request AND
   **approving prod** — a non-member can neither trigger a build nor authorize go-live.
 
-**Why both layers:** Layer 1 can be misconfigured (an app policy widened, a member added to
+**Why both layers:** Layer 1 can be misconfigured (a wrong guest invited, someone added to
 the channel by mistake); Layer 2 is an independent, code-level gate so an LLM-driven agent
 never processes or deploys on an unverified request. Every accepted and refused request is
 logged with the sender identity for audit.
@@ -147,9 +171,12 @@ Either way, **you pay for Claude only when it processes a request, never for wai
 
 ## Open questions (for IT / EY / Sandy)
 
-> **Note on hosting:** per the GDI-hosted decision, the VM, Azure Bot, and app registration
-> live in the **PTGDI tenant**; Vale only installs the Teams app + grants the cross-tenant
-> access below. This removes the Anthropic-egress-in-Vale-tenant blocker Sandy raised.
+> **Note on hosting (updated 2026-09-21):** the VM, Azure Bot, app registration, **and the
+> Teams channel + SharePoint request library** all live in the **PTGDI tenant**. COMMs are
+> invited as **guests** into the PTGDI Team. Vale no longer installs a Teams app; the only
+> remaining Vale-side grant is cross-tenant **storage RBAC** for prod/dev deploys (Q2). This
+> removes both the Anthropic-egress-in-Vale-tenant blocker Sandy raised and the cross-tenant
+> Teams-app-install + cross-tenant Graph-consent dependencies.
 
 1. **VM (PTGDI tenant)**: size, OS (Linux preferred), subscription/RG, network egress to
    valeindonesia.com + Anthropic API + Graph. Light/bursty/mostly-idle (see Runtime & cost
@@ -159,18 +186,48 @@ Either way, **you pay for Claude only when it processes a request, never for wai
    Options: Vale grants the GDI principal cross-tenant RBAC on those accounts, or reuse the
    existing GDI-authorized deploy path. PIM (human-MFA) doesn't fit an unattended VM —
    **recommend a scoped service principal; needs Vale IT sign-off.**
-3. **Azure Bot registration** in PTGDI (single-tenant bot + **multi-tenant** app
-   registration for cross-tenant messaging) + who owns it.
-4. **Teams app install in Vale**: Vale Teams admin sideloads/approves the
-   `ptvi-website-support` app + scopes it to the COMMs group (see Access control).
-5. **Access-control AD group**: create `PTVI-Website-COMMs` (Vale AAD) listing the COMMs
-   members; the operator checks membership via Graph. Confirm cross-tenant Graph read of a
-   Vale group from the GDI app (guest/`Sites.Selected`-style consent), or mirror the roster
-   GDI-side.
-6. **Graph `Sites.Selected` consent** for the request SharePoint library (Vale admin grant).
+3. **Azure Bot registration** in PTGDI (**single-tenant** bot + single-tenant app
+   registration — cross-tenant messaging no longer needed since COMMs join as PTGDI guests)
+   + who owns it.
+4. **PTGDI Team + guest invitations**: create the PTGDI Team/channel
+   "Valeindonesia.com Update – Request" and its SharePoint library; PTGDI invites the COMMs
+   members as **guests (B2B)**. Confirm Vale allows its users to accept PTGDI guest invites
+   (Vale outbound / PTGDI inbound cross-tenant-access / external-collaboration settings).
+5. **Access-control AD group**: create `PTVI-Website-COMMs` **in PTGDI AAD** listing the
+   invited COMMs guests; the operator checks membership via Graph. Because it's same-tenant,
+   **no cross-tenant Graph consent needed** — GDI owns the roster.
+6. **Graph `Sites.Selected` consent** for the **PTGDI** request SharePoint library
+   (**PTGDI admin grant** — same tenant, no Vale involvement).
 7. **Anthropic API** — GDI-owned account/key (billing + commercial terms on GDI's side);
    data-egress note for the review.
 8. **`3-Done` move**: automated via Graph or left to the human.
+
+## Review notes (2026-09-21) — resolve before build
+
+Design-review pass. Verified against current Microsoft docs; the tenancy model is sound.
+Items below are gaps to close, not blockers:
+
+- **Failure path is under-specified.** Guardrails cover *verify after deploy*, but not what
+  the bot does when a **prod deploy fails verification**: does it auto-rollback (we have
+  `rollback-vacancy.py` but no general rollback), leave prod half-updated, or just alert?
+  Deploys are incremental (per memory: never full-sync), so a partial failure can leave prod
+  inconsistent. **Decide: alert-only + manual GDI recovery, or automated rollback per type.**
+- **Concurrency lock is asserted, not designed.** "One request at a time" needs a real lock
+  (the operator is the single writer; a file/DB lock or single-worker queue). Name the
+  mechanism.
+- **Secrets on a shared VM.** The Anthropic key, bot app-password/cert, and the prod deploy
+  credential all sit on one host. Specify storage (Azure Key Vault + managed identity,
+  not files on disk) and who can SSH in.
+- **Guest churn breaks Layer 2 silently.** If a COMMs guest's PTGDI object is recreated
+  (re-invited), their `aadObjectId` changes and they're locked out until re-added to the
+  group. Note the re-invite runbook step.
+- **Not every request maps to a workflow script.** `content-*.json` (bespoke page edits)
+  has no `intake-to-*` — the page-editor is manual today. The operator can auto-handle
+  news/doc/vacancy/awards; **bespoke page edits still need a human step** — say so, don't
+  imply full automation.
+- **Verify claim scope.** "HTTP 200 + content grep" is fine for a known URL, but a news/doc
+  build touches an index + a new detail page + JSON; the verify step should check **each**
+  changed URL, not just one.
 
 ## Migration from today
 
@@ -181,7 +238,11 @@ Either way, **you pay for Claude only when it processes a request, never for wai
 
 ## What stays the same for COMMs
 
-Nothing changes in how COMMs works — same forms, same Teams folder, same approve-the-preview
-step. Only the operator moves from "Feiry runs it on the Mac" to "the VM does it, driven from
-Teams."
+Same forms, same folder structure, same approve-the-preview step. The one change COMMs will
+notice: they now work in a **PTGDI-hosted Teams channel they join as guests**, and the
+request library **moves from the Vale-owned OneDrive/SharePoint to the PTGDI SharePoint
+library** (decided 2026-09-21 — single source of truth in PTGDI keeps the Graph read
+same-tenant; the tradeoff is COMMs re-bookmark the new location as a one-time change).
+Authoring itself (the forms, the drop-in-`1-Submitted` flow) is unchanged; the operator
+moves from "Feiry runs it on the Mac" to "the VM does it, driven from Teams."
 ```
