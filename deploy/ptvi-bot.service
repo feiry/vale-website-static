@@ -1,0 +1,16 @@
+[Unit]
+Description=PTVI website-support Teams bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=azureuser
+ExecStart=/home/azureuser/ptvi-bot/run-bot.sh
+Restart=on-failure
+RestartSec=5
+# az cli writes tokens under HOME
+Environment=HOME=/home/azureuser
+
+[Install]
+WantedBy=multi-user.target
