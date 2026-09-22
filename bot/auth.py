@@ -54,23 +54,33 @@ def _mi_token() -> Optional[str]:
 
 
 def _in_group_via_graph(aad_object_id: str, group_id: str) -> Optional[bool]:
-    """True/False if resolvable, None on any error (caller fails closed)."""
+    """
+    True/False if resolvable, None on any error (caller fails closed).
+
+    Uses GET /groups/{id}/members and checks the sender's object id against the returned
+    member ids. This works with the managed identity's GroupMember.Read.All app permission
+    (checkMemberGroups on another user's directoryObject would additionally require
+    User.Read.All / Directory.Read.All, which we deliberately don't grant). Follows @odata
+    paging so large groups are handled.
+    """
     token = _mi_token()
     if not token or _http is None:
         return None
     try:
-        # checkMemberGroups: does this user belong to the given group? (handles transitive)
-        r = _http.post(
-            f"{_GRAPH}/directoryObjects/{aad_object_id}/checkMemberGroups",
-            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-            json={"groupIds": [group_id]},
-            timeout=8,
-        )
-        if r.status_code == 200:
-            return group_id in r.json().get("value", [])
+        url = f"{_GRAPH}/groups/{group_id}/members?$select=id&$top=999"
+        headers = {"Authorization": f"Bearer {token}"}
+        while url:
+            r = _http.get(url, headers=headers, timeout=8)
+            if r.status_code != 200:
+                return None
+            body = r.json()
+            for m in body.get("value", []):
+                if m.get("id") == aad_object_id:
+                    return True
+            url = body.get("@odata.nextLink")
+        return False
     except Exception:  # noqa: BLE001
-        pass
-    return None
+        return None
 
 
 def is_authorised(aad_object_id: Optional[str]) -> tuple[bool, str]:
