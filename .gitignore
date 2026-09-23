@@ -65,3 +65,4 @@ docs/latest-templates/
 operator-audit.log
 .operator.lock
 deploy/teams-app/*.zip
+.operator-rollback/

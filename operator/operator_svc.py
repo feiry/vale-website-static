@@ -24,6 +24,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -42,6 +43,9 @@ from typing import Optional
 REPO_ROOT = Path(__file__).resolve().parent.parent
 LOCK_PATH = REPO_ROOT / ".operator.lock"
 AUDIT_LOG = REPO_ROOT / "operator-audit.log"
+# Rollback manifests: one JSON per successful deploy, newest wins. Lets `rollback` undo the
+# last processed request (restore data file, rebuild, delete the deployed blobs).
+ROLLBACK_DIR = REPO_ROOT / ".operator-rollback"
 
 # Which intake script + follow-on build handles each request type, and how the type is
 # detected from the request folder. Detection is by the request JSON filename suffix,
@@ -116,9 +120,12 @@ class OperatorResult:
     finished_at: str = ""
     stages: list = field(default_factory=list)
     message: str = ""
+    _deployed_paths: list = field(default_factory=list)  # set by _auto_deployer, for rollback manifest
 
     def to_json(self) -> str:
-        return json.dumps(asdict(self), ensure_ascii=False, indent=2)
+        d = asdict(self)
+        d.pop("_deployed_paths", None)  # internal, not part of the reported result
+        return json.dumps(d, ensure_ascii=False, indent=2)
 
 
 class OperatorError(Exception):
@@ -217,6 +224,43 @@ _NEWS_LISTINGS = [
     "/in/indonesia/all-news.html",
 ]
 
+# data file per type (relative to repo root) — used for rollback snapshots
+_DATA_FILE = {
+    "news": "site-data/news-indonesia.json",
+    "documents": "site-data/documents.json",
+    # vacancy/awards mutate HTML pages directly, no single data file → rollback = data snapshot of whole site-data is impractical; handled as "unsupported" below
+}
+
+
+def _snapshot_data_file(rtype: str) -> Optional[str]:
+    """Copy the type's data file to the rollback dir before apply. Returns the snapshot path."""
+    rel = _DATA_FILE.get(rtype)
+    if not rel:
+        return None
+    src = REPO_ROOT / rel
+    if not src.is_file():
+        return None
+    ROLLBACK_DIR.mkdir(exist_ok=True)
+    snap = ROLLBACK_DIR / f"pre-{rtype}-{int(time.time()*1000)}.json"
+    shutil.copy2(src, snap)
+    return str(snap)
+
+
+def _write_rollback_manifest(request_id: str, rtype: str, target: str,
+                             data_snapshot: Optional[str], deployed_paths: list[str]) -> None:
+    """Record what a successful run did, so `rollback` can undo it. Newest file = last run."""
+    try:
+        ROLLBACK_DIR.mkdir(exist_ok=True)
+        manifest = {
+            "at": _now(), "request_id": request_id, "type": rtype, "target": target,
+            "data_file": _DATA_FILE.get(rtype), "data_snapshot": data_snapshot,
+            "deployed_paths": deployed_paths,
+        }
+        mf = ROLLBACK_DIR / f"run-{int(time.time()*1000)}.json"
+        mf.write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
+    except OSError:
+        pass
+
 
 def _auto_deployer(result: OperatorResult):
     """
@@ -250,6 +294,8 @@ def _auto_deployer(result: OperatorResult):
     # verify: article pages get a content needle (their own path is enough as a smoke check);
     # listings just need 200. Keep needle None to avoid brittle title matching across chrome.
     verify_urls = [(p, None) for p in all_paths]
+    # stash the deployed blob paths on the result so process() can record a rollback manifest
+    result._deployed_paths = [p.lstrip("/") for p in all_paths]
     return dep_mod.make_deployer(REPO_ROOT, changed_files, verify_urls)
 
 
@@ -324,6 +370,8 @@ def process(request_id: str, folder: str | os.PathLike, target: str = "dev",
                 return finish(True, f"dry-run OK for {rtype} (preview only; apply=False)")
 
             # 3) APPLY -------------------------------------------------------
+            # snapshot the data file BEFORE apply, so rollback can restore the pre-request state
+            data_snapshot = _snapshot_data_file(rtype)
             ap = _run(["python3", str(intake), str(req_json)], cwd=REPO_ROOT)
             result.stages.append(StageResult(
                 Stage.APPLY, Status.OK if ap.returncode == 0 else Status.FAILED,
@@ -366,6 +414,10 @@ def process(request_id: str, folder: str | os.PathLike, target: str = "dev",
             if dep.status != Status.OK:
                 return finish(False, f"deploy to {target} failed: {dep.detail}")
 
+            # record a rollback manifest so `rollback` can undo this run
+            if data_snapshot and result._deployed_paths:
+                _write_rollback_manifest(request_id, rtype, target, data_snapshot, result._deployed_paths)
+
             return finish(True, f"{rtype} deployed to {target} and verified")
 
     except OperatorError as e:
@@ -374,6 +426,94 @@ def process(request_id: str, folder: str | os.PathLike, target: str = "dev",
     except subprocess.TimeoutExpired as e:
         result.stages.append(StageResult(Stage.BUILD, Status.FAILED, detail=f"timeout: {e}"))
         return finish(False, "a step timed out")
+
+
+# --------------------------------------------------------------------------- #
+# Rollback — undo the last processed request (restore data, rebuild, delete blobs)
+# --------------------------------------------------------------------------- #
+
+def _latest_manifest() -> Optional[Path]:
+    if not ROLLBACK_DIR.is_dir():
+        return None
+    runs = sorted(ROLLBACK_DIR.glob("run-*.json"))
+    return runs[-1] if runs else None
+
+
+def rollback(target: str = "dev") -> dict:
+    """
+    Undo the most recent processed request on `target`:
+      restore the data file from its pre-run snapshot → rebuild → delete the deployed blobs.
+    Returns a structured result dict. Single-writer locked, like process().
+    """
+    started = _now()
+    out = {"ok": False, "at": started, "message": "", "undid": None}
+
+    def done(ok, msg, **extra):
+        out.update(ok=ok, message=msg, finished=_now(), **extra)
+        _audit_line({"event": "rollback", "ok": ok, "message": msg, **extra})
+        return out
+
+    if target not in ("dev", "prod"):
+        return done(False, f"invalid target '{target}'")
+
+    try:
+        with _Lock(LOCK_PATH, "rollback"):
+            mf_path = _latest_manifest()
+            if not mf_path:
+                return done(False, "nothing to roll back — no processed request recorded")
+            mf = json.loads(mf_path.read_text())
+            rtype = mf.get("type"); rid = mf.get("request_id")
+            data_rel = mf.get("data_file"); snap = mf.get("data_snapshot")
+            deployed = mf.get("deployed_paths", [])
+
+            # 1) restore the data file from the pre-run snapshot
+            if data_rel and snap and Path(snap).is_file():
+                shutil.copy2(snap, REPO_ROOT / data_rel)
+            else:
+                return done(False, f"cannot roll back {rid}: data snapshot missing")
+
+            # 2) rebuild so generated pages/listings match the restored data
+            spec = TYPE_SPECS.get(rtype, {})
+            build_script = spec.get("build")
+            if build_script:
+                bp = _run(["python3", str(REPO_ROOT / build_script)], cwd=REPO_ROOT)
+                if bp.returncode != 0:
+                    return done(False, f"rollback: rebuild failed (rc={bp.returncode})")
+
+            # 3) delete the blobs this run deployed (dev storage, as the managed identity)
+            import deployer as dep_mod
+            account = dep_mod.DEV_ACCOUNT if target == "dev" else dep_mod.PROD_ACCOUNT
+            deleted, failed = 0, []
+            for blob in deployed:
+                cp = subprocess.run(
+                    ["az", "storage", "blob", "delete", "--account-name", account,
+                     "--auth-mode", "login", "--container-name", "$web", "--name", blob,
+                     "--only-show-errors"],
+                    capture_output=True, text=True, timeout=60)
+                if cp.returncode == 0:
+                    deleted += 1
+                else:
+                    failed.append(blob)
+
+            # 4) re-upload the rebuilt listings (they changed when we removed the record)
+            #    so the listing no longer references the rolled-back article.
+            site_root = REPO_ROOT / dep_mod.SITE_ROOT_REL
+            for lp in [p.lstrip("/") for p in _NEWS_LISTINGS] if rtype == "news" else []:
+                local = site_root / lp
+                if local.is_file():
+                    dep_mod._az_upload(account, local, lp)
+
+            # 5) archive the manifest so a second rollback doesn't re-undo
+            mf_path.rename(mf_path.with_suffix(".done"))
+
+            msg = f"rolled back {rtype} request '{rid}' on {target}: restored data, rebuilt, deleted {deleted} blob(s)"
+            if failed:
+                msg += f" ({len(failed)} blob delete(s) failed)"
+            return done(True, msg, undid=rid)
+    except OperatorError as e:
+        return done(False, str(e))
+    except subprocess.TimeoutExpired:
+        return done(False, "rollback timed out")
 
 
 def _audit_line(obj: dict) -> None:

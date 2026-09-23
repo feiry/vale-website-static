@@ -26,6 +26,9 @@ class Intent:
     target: str = "dev"
 
 
+# rollback first (it may contain "undo"/"batal"); checked before process so "undo the deploy"
+# isn't mis-read as a deploy.
+_ROLLBACK = re.compile(r"\b(rollback|roll\s*back|undo|revert|batal(?:kan)?|kembalikan)\b", re.I)
 _PROCESS = re.compile(r"\b(process|publish|build|deploy|jalankan|proses)\b", re.I)
 _APPROVE = re.compile(r"\b(approve|setuju|go\s*live|deploy\s+prod|to\s+prod|ke\s+prod)\b", re.I)
 _STATUS = re.compile(r"\b(status|pending|what.?s\s+pending|antrian|apa\s+yang)\b", re.I)
@@ -62,6 +65,8 @@ def parse_intent(text: str, value: Optional[dict] = None) -> Intent:
 
     rid = _extract_rid(t)
 
+    if _ROLLBACK.search(t):
+        return Intent(kind="rollback", request_id=rid, target="dev")
     if _APPROVE.search(t):
         return Intent(kind="approve_prod", request_id=rid, target="prod")
     if _PROCESS.search(t):
