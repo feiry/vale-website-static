@@ -81,9 +81,11 @@ async def on_message(turn: TurnContext):
 
     if intent.kind == "help":
         await _reply_card(turn, cards.text_card("Website support bot", [
-            "• **process the request** — build the pending request and deploy to dev preview",
             "• **what's pending?** — list submitted requests",
-            "• **rollback** — undo the last processed request (or `rollback <request-id>` for a specific one)",
+            "• **process the request** — build & deploy to dev preview (when only one is pending)",
+            "• **process `<request-id>`** — process a specific request, e.g. `process sp-demo-news`",
+            "• **rollback** — undo the last processed request",
+            "• **rollback `<request-id>`** — undo a specific request, e.g. `rollback sp-demo-news`",
             "• **approve** — after reviewing dev, deploy to production",
         ]))
         return
