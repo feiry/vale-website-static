@@ -89,10 +89,12 @@ tail ~/ptvi-bot/repo/operator-audit.log      # one JSON line per run + auth even
   (career.html EN+ID), **awards** (awards/penghargaan pages), **documents** (documents-and-reports
   / dokumen-dan-laporan). News & documents are data-driven (JSON→build); vacancy & awards edit
   the HTML pages directly.
-- `rollback` (or `undo`) — undo the LAST processed request: restore the data file, rebuild,
-  delete the deployed blobs. This is the **typo-correction path**: process → spot typo on the
-  dev preview → `rollback` → fix the request JSON in SharePoint → `process` again (re-publishing
-  is blocked by the duplicate-slug gate WITHOUT a rollback first, so this is required).
+- `rollback` (or `undo`) — undo the LAST processed request. This is the **typo-correction path**:
+  process → spot typo on the dev preview → `rollback` → fix the request JSON in SharePoint →
+  `process` again (re-publishing is blocked by the duplicate-slug gate WITHOUT a rollback first).
+- `rollback <request-id>` (e.g. `rollback sp-demo-news`) — undo a SPECIFIC request regardless of
+  order, preserving newer ones. Data-driven types remove only that request's record(s) by slug/id
+  (surgical) so other requests survive; HTML-direct types restore that request's page snapshot.
 - `approve` — gated in the test build (prod not wired; shows an explanatory message).
 
 Rollback internals: each successful deploy writes a manifest to `.operator-rollback/`
