@@ -84,7 +84,11 @@ tail ~/ptvi-bot/repo/operator-audit.log      # one JSON line per run + auth even
 ## Bot commands (Teams)
 - `help` — list commands
 - `what's pending?` — list requests in SharePoint `1-Submitted`
-- `process the request` — build the pending request + deploy to dev preview (+ preview links)
+- `process the request` — build the pending request + deploy to dev preview (+ preview links).
+  Handles all four request types: **news** (article + all-news listings), **vacancy**
+  (career.html EN+ID), **awards** (awards/penghargaan pages), **documents** (documents-and-reports
+  / dokumen-dan-laporan). News & documents are data-driven (JSON→build); vacancy & awards edit
+  the HTML pages directly.
 - `rollback` (or `undo`) — undo the LAST processed request: restore the data file, rebuild,
   delete the deployed blobs. This is the **typo-correction path**: process → spot typo on the
   dev preview → `rollback` → fix the request JSON in SharePoint → `process` again (re-publishing
@@ -92,8 +96,10 @@ tail ~/ptvi-bot/repo/operator-audit.log      # one JSON line per run + auth even
 - `approve` — gated in the test build (prod not wired; shows an explanatory message).
 
 Rollback internals: each successful deploy writes a manifest to `.operator-rollback/`
-(pre-run data-file snapshot + deployed blob paths). `rollback` reads the newest, restores,
-rebuilds, deletes those blobs, re-uploads corrected listings, and archives the manifest
+(pre-run snapshot + deployed blob paths). Two restore modes by type: **data-driven** (news,
+documents) restore the JSON snapshot + rebuild; **HTML-direct** (vacancy, awards) restore the
+edited pages from a page snapshot. Then re-deploy the restored pages (re-upload) or delete
+blobs that no longer exist locally (e.g. a rolled-back news article), and archive the manifest
 (`.done`) so it can't double-undo. Dev-scoped, COMMs-triggerable, single-writer locked.
 
 ## Gotchas (learned the hard way)
