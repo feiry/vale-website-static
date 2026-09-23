@@ -46,7 +46,7 @@ The bot authenticates as the VM's system-assigned managed identity — no secret
 - **Key Vault Secrets User** on `kv-ptvi-webbot` (reads the bot password)
 - **Storage Blob Data Contributor** on `stptviwebbot` (deploys the built site)
 - **Graph GroupMember.Read.All** (checks PTVI-Website-COMMs membership)
-- **Graph Files.Read.All** (reads the SharePoint request library)
+- **Graph Files.ReadWrite.All** (reads the SharePoint request library + moves request folders across stage folders)
 
 ## On the VM (`~/ptvi-bot/`)
 - `repo/` — this repo's scripts + `operator/` + `bot/` + `site-data/` + `site/` (4.3GB mirror)
@@ -83,7 +83,8 @@ tail ~/ptvi-bot/repo/operator-audit.log      # one JSON line per run + auth even
 
 ## Bot commands (Teams)
 - `help` — list commands
-- `what's pending?` — list requests in SharePoint `1-Submitted`
+- `what's pending?` — list requests in SharePoint `1-Submitted` (each with a Process button).
+  Processed requests move to `2-In-Progress` and drop off this list; rollback moves them back.
 - `process the request` — build the pending request + deploy to dev preview (+ preview links).
   Handles all four request types: **news** (article + all-news listings), **vacancy**
   (career.html EN+ID), **awards** (awards/penghargaan pages), **documents** (documents-and-reports
