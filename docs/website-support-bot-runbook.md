@@ -81,6 +81,21 @@ tail ~/ptvi-bot/repo/operator-audit.log      # one JSON line per run + auth even
 **Add a tester:** add their AAD user to group `PTVI-Website-COMMs` (`az ad group member add
 --group 40c7a9b2… --member-id <oid>`) AND to the Team; they then use 1:1 chat or channel @mention.
 
+## Bot commands (Teams)
+- `help` — list commands
+- `what's pending?` — list requests in SharePoint `1-Submitted`
+- `process the request` — build the pending request + deploy to dev preview (+ preview links)
+- `rollback` (or `undo`) — undo the LAST processed request: restore the data file, rebuild,
+  delete the deployed blobs. This is the **typo-correction path**: process → spot typo on the
+  dev preview → `rollback` → fix the request JSON in SharePoint → `process` again (re-publishing
+  is blocked by the duplicate-slug gate WITHOUT a rollback first, so this is required).
+- `approve` — gated in the test build (prod not wired; shows an explanatory message).
+
+Rollback internals: each successful deploy writes a manifest to `.operator-rollback/`
+(pre-run data-file snapshot + deployed blob paths). `rollback` reads the newest, restores,
+rebuilds, deletes those blobs, re-uploads corrected listings, and archives the manifest
+(`.done`) so it can't double-undo. Dev-scoped, COMMs-triggerable, single-writer locked.
+
 ## Gotchas (learned the hard way)
 
 - **Sponsored subs block cheap VMs.** B/D/E general-purpose SKUs return `NotAvailableForSubscription`
