@@ -269,6 +269,42 @@ def _snapshot_state(rtype: str) -> dict:
     return snap
 
 
+def _record_key(rec: dict) -> Optional[str]:
+    """Stable identity for a data-file record, for surgical targeted rollback."""
+    if not isinstance(rec, dict):
+        return None
+    if rec.get("slug"):
+        return f"slug={rec['slug']}"          # news
+    if rec.get("id") is not None:
+        return f"id={rec['id']}"              # documents
+    return None
+
+
+def _added_record_keys(rtype: str, data_snapshot: Optional[str]) -> list[str]:
+    """
+    Diff the pre-apply data snapshot against the current data file to find which record(s)
+    this run added. Returns their stable keys (slug=… / id=…) for surgical removal on rollback.
+    """
+    rel = _DATA_FILE.get(rtype)
+    if not rel or not data_snapshot or not Path(data_snapshot).is_file():
+        return []
+    cur_path = REPO_ROOT / rel
+    if not cur_path.is_file():
+        return []
+    try:
+        before = json.loads(Path(data_snapshot).read_text())
+        after = json.loads(cur_path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return []
+    before_keys = {_record_key(r) for r in before if isinstance(before, list)}
+    added = []
+    for r in (after if isinstance(after, list) else []):
+        k = _record_key(r)
+        if k and k not in before_keys:
+            added.append(k)
+    return added
+
+
 def _write_rollback_manifest(request_id: str, rtype: str, target: str,
                              snapshot: dict, deployed_paths: list[str]) -> None:
     """Record what a successful run did, so `rollback` can undo it. Newest file = last run."""
@@ -280,6 +316,7 @@ def _write_rollback_manifest(request_id: str, rtype: str, target: str,
             "data_snapshot": snapshot.get("data"),
             "page_snapshots": snapshot.get("pages", {}),  # rel -> snapshot path (vacancy/awards)
             "deployed_paths": deployed_paths,
+            "added_keys": _added_record_keys(rtype, snapshot.get("data")),  # for surgical targeted undo
         }
         mf = ROLLBACK_DIR / f"run-{int(time.time()*1000)}.json"
         mf.write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
@@ -466,17 +503,50 @@ def process(request_id: str, folder: str | os.PathLike, target: str = "dev",
 # Rollback — undo the last processed request (restore data, rebuild, delete blobs)
 # --------------------------------------------------------------------------- #
 
-def _latest_manifest() -> Optional[Path]:
+def _active_manifests() -> list[Path]:
     if not ROLLBACK_DIR.is_dir():
+        return []
+    return sorted(ROLLBACK_DIR.glob("run-*.json"))
+
+
+def _select_manifest(request_id: Optional[str]) -> Optional[Path]:
+    """Newest manifest overall, or the newest matching a specific request_id (targeted)."""
+    runs = _active_manifests()
+    if not runs:
         return None
-    runs = sorted(ROLLBACK_DIR.glob("run-*.json"))
-    return runs[-1] if runs else None
+    if request_id is None:
+        return runs[-1]
+    for mf in reversed(runs):  # newest matching first
+        try:
+            if json.loads(mf.read_text()).get("request_id") == request_id:
+                return mf
+        except (OSError, json.JSONDecodeError):
+            continue
+    return None
 
 
-def rollback(target: str = "dev") -> dict:
+def _remove_records_by_key(data_rel: str, keys: list[str]) -> int:
+    """Surgically remove records whose key ∈ keys from the data file. Returns count removed."""
+    p = REPO_ROOT / data_rel
+    recs = json.loads(p.read_text())
+    if not isinstance(recs, list):
+        return 0
+    keep = [r for r in recs if _record_key(r) not in set(keys)]
+    removed = len(recs) - len(keep)
+    if removed:
+        p.write_text(json.dumps(keep, ensure_ascii=False, indent=2))
+    return removed
+
+
+def rollback(target: str = "dev", request_id: Optional[str] = None) -> dict:
     """
-    Undo the most recent processed request on `target`:
-      restore the data file from its pre-run snapshot → rebuild → delete the deployed blobs.
+    Undo a processed request on `target`. Without request_id → the most recent run (LIFO).
+    With request_id → that specific request, regardless of order (targeted).
+
+    Data-driven types (news/documents) use SURGICAL removal: only that request's added
+    record(s) are pulled from the data file (by slug/id), then rebuild — so newer same-type
+    requests are preserved. HTML-direct types (vacancy/awards) restore the page snapshot
+    (safe when it's the latest edit to those pages).
     Returns a structured result dict. Single-writer locked, like process().
     """
     started = _now()
@@ -484,7 +554,7 @@ def rollback(target: str = "dev") -> dict:
 
     def done(ok, msg, **extra):
         out.update(ok=ok, message=msg, finished=_now(), **extra)
-        _audit_line({"event": "rollback", "ok": ok, "message": msg, **extra})
+        _audit_line({"event": "rollback", "ok": ok, "message": msg, "target_id": request_id, **extra})
         return out
 
     if target not in ("dev", "prod"):
@@ -492,21 +562,28 @@ def rollback(target: str = "dev") -> dict:
 
     try:
         with _Lock(LOCK_PATH, "rollback"):
-            mf_path = _latest_manifest()
+            mf_path = _select_manifest(request_id)
             if not mf_path:
+                if request_id:
+                    return done(False, f"no rollback record found for request '{request_id}'")
                 return done(False, "nothing to roll back — no processed request recorded")
             mf = json.loads(mf_path.read_text())
             rtype = mf.get("type"); rid = mf.get("request_id")
             data_rel = mf.get("data_file"); data_snap = mf.get("data_snapshot")
             page_snaps = mf.get("page_snapshots", {})   # rel -> snapshot path (vacancy/awards)
             deployed = mf.get("deployed_paths", [])
+            added_keys = mf.get("added_keys", [])
             import deployer as dep_mod
             site_root = REPO_ROOT / dep_mod.SITE_ROOT_REL
 
-            # 1) RESTORE local state to pre-run
-            if data_rel and data_snap and Path(data_snap).is_file():
-                # data-driven (news/documents): restore JSON, then rebuild pages
-                shutil.copy2(data_snap, REPO_ROOT / data_rel)
+            # 1) RESTORE local state
+            if data_rel and (REPO_ROOT / data_rel).is_file():
+                # data-driven: SURGICALLY remove this request's record(s), then rebuild.
+                # (Surgical, not snapshot-restore, so newer same-type requests survive.)
+                if added_keys:
+                    _remove_records_by_key(data_rel, added_keys)
+                elif data_snap and Path(data_snap).is_file():
+                    shutil.copy2(data_snap, REPO_ROOT / data_rel)  # fallback: snapshot restore
                 build_script = TYPE_SPECS.get(rtype, {}).get("build")
                 if build_script:
                     bp = _run(["python3", str(REPO_ROOT / build_script)], cwd=REPO_ROOT)

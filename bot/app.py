@@ -83,14 +83,16 @@ async def on_message(turn: TurnContext):
         await _reply_card(turn, cards.text_card("Website support bot", [
             "• **process the request** — build the pending request and deploy to dev preview",
             "• **what's pending?** — list submitted requests",
-            "• **rollback** — undo the last processed request (fix a typo, then process again)",
+            "• **rollback** — undo the last processed request (or `rollback <request-id>` for a specific one)",
             "• **approve** — after reviewing dev, deploy to production",
         ]))
         return
 
     if intent.kind == "rollback":
-        await turn.send_activity("Rolling back the last processed request …")
-        res = op.rollback(target="dev")
+        rid = intent.request_id  # None → last processed (LIFO); set → that specific request
+        await turn.send_activity(
+            f"Rolling back {rid if rid else 'the last processed request'} …")
+        res = op.rollback(target="dev", request_id=rid)
         icon = "↩️" if res.get("ok") else "❌"
         await _reply_card(turn, cards.text_card(
             f"{icon} Rollback", [res.get("message", "(no result)")]))
