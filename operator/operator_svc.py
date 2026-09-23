@@ -520,20 +520,30 @@ def rollback(target: str = "dev") -> dict:
             else:
                 return done(False, f"cannot roll back {rid}: no snapshot recorded")
 
-            # 2) RE-DEPLOY the restored pages so dev matches (overwrite what the run deployed).
-            #    For news the article page no longer exists post-rebuild → delete it; for the
-            #    fixed pages (listings, career, awards, docs) → re-upload the restored version.
+            # 2) RE-DEPLOY per deployed path. Two cases:
+            #    - PERMANENT pages (listings, career, awards, docs — the type's fixed _TYPE_PAGES):
+            #      re-upload the restored version so dev matches the rolled-back state.
+            #    - TRANSIENT pages (a news ARTICLE page, i.e. not in _TYPE_PAGES): the record was
+            #      removed, so this page must NOT exist anymore → delete it from BOTH disk and
+            #      storage. (build-news.py leaves the orphaned article file on disk, so we can't
+            #      rely on "not local.is_file()" — must check membership in the permanent set.)
             account = dep_mod.DEV_ACCOUNT if target == "dev" else dep_mod.PROD_ACCOUNT
+            permanent = {p.lstrip("/") for p in _TYPE_PAGES.get(rtype, [])}
             deleted, reuploaded, failed = 0, 0, []
             for blob in deployed:
                 local = site_root / blob
-                if local.is_file():
-                    ok, _ = dep_mod._az_upload(account, local, blob)  # restored page → overwrite
-                    reuploaded += 1 if ok else 0
-                    if not ok:
-                        failed.append(blob)
+                if blob in permanent:
+                    if local.is_file():
+                        ok, _ = dep_mod._az_upload(account, local, blob)  # restored → overwrite
+                        reuploaded += 1 if ok else 0
+                        if not ok:
+                            failed.append(blob)
                 else:
-                    # page no longer exists locally (e.g. a rolled-back news article) → delete blob
+                    # transient (news article): delete from disk + storage
+                    try:
+                        local.unlink(missing_ok=True)
+                    except OSError:
+                        pass
                     cp = subprocess.run(
                         ["az", "storage", "blob", "delete", "--account-name", account,
                          "--auth-mode", "login", "--container-name", "$web", "--name", blob,

@@ -36,14 +36,24 @@ PROD_BASE = "https://www.valeindonesia.com"
 
 
 def _preview_links(result: "op.OperatorResult") -> list[str]:
-    """Best-effort preview URLs pulled from the intake dry-run/apply output."""
-    links: list[str] = []
-    for st in result.stages:
-        for line in (st.stdout_tail or "").splitlines():
-            line = line.strip()
-            if line.startswith(("EN:", "ID:")) and "/" in line:
-                path = line.split(":", 1)[1].strip()
-                links.append(DEV_BASE + path)
+    """
+    Preview URLs for the pages this run deployed — works for ALL request types.
+    Primary source: result._deployed_paths (the exact pages the operator published, set for
+    news/vacancy/awards/documents). Falls back to parsing the intake's EN:/ID: output lines.
+    """
+    seen, links = set(), []
+    for rel in getattr(result, "_deployed_paths", []) or []:
+        url = DEV_BASE + "/" + rel.lstrip("/")
+        if url not in seen:
+            seen.add(url); links.append(url)
+    if not links:  # fallback: news-style EN:/ID: output
+        for st in result.stages:
+            for line in (st.stdout_tail or "").splitlines():
+                line = line.strip()
+                if line.startswith(("EN:", "ID:")) and "/" in line:
+                    url = DEV_BASE + line.split(":", 1)[1].strip()
+                    if url not in seen:
+                        seen.add(url); links.append(url)
     return links[:6]
 
 
