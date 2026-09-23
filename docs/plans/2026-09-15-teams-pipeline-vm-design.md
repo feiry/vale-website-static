@@ -1,5 +1,13 @@
 # Website Update Pipeline — Azure VM + Teams Design
 
+> **Built & live (2026-09-23).** This is the original design; for the AS-BUILT state
+> (actual resource IDs, ops commands, gotchas, cost notes), see
+> **`docs/website-support-bot-runbook.md`**. Notable deviations from this plan: hosted on a
+> PTGDI **Sponsorship** subscription (not a fresh VM in Vale's tenant), running an **FX2ms_v2**
+> VM because sponsored subs block cheap B/D SKUs, deploying to **PTGDI** dev storage until the
+> Vale cross-tenant grant lands.
+
+
 **Date:** 2026-09-15 (updated 2026-09-21)
 **Status:** Design (approved in principle by Feiry; for Sandy / IT / EY review)
 
