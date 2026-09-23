@@ -58,6 +58,44 @@ def _mi_token() -> Optional[str]:
     return None
 
 
+_app_token_cache = {"tok": None, "exp": 0.0}
+
+
+def _app_token() -> Optional[str]:
+    """
+    Graph token via the bot APP REGISTRATION's client credentials (id + secret from env).
+    Used for WRITE ops (folder moves): app-registration tokens carry granted app-roles
+    reliably, unlike managed-identity tokens (which propagate app-role changes flakily).
+    Cached until ~1 min before expiry.
+    """
+    import time as _t
+    if _http is None:
+        return None
+    if _app_token_cache["tok"] and _t.time() < _app_token_cache["exp"] - 60:
+        return _app_token_cache["tok"]
+    app_id = getattr(Config, "APP_ID", "")
+    secret = getattr(Config, "APP_PASSWORD", "")
+    tenant = getattr(Config, "APP_TENANTID", "")
+    if not (app_id and secret and tenant):
+        return None
+    try:
+        r = _http.post(
+            f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token",
+            data={"client_id": app_id, "client_secret": secret,
+                  "scope": "https://graph.microsoft.com/.default",
+                  "grant_type": "client_credentials"},
+            timeout=10,
+        )
+        if r.status_code == 200:
+            j = r.json()
+            _app_token_cache["tok"] = j.get("access_token")
+            _app_token_cache["exp"] = _t.time() + j.get("expires_in", 3600)
+            return _app_token_cache["tok"]
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
 # --------------------------------------------------------------------------- #
 # Local backend
 # --------------------------------------------------------------------------- #
@@ -161,9 +199,13 @@ def _sp_find_folder(request_id: str, stages: list[str]) -> Optional[str]:
 
 
 def _sp_move(request_id: str, from_stage: str, to_stage: str) -> bool:
-    """Move 1-Submitted/<id> → 2-In-Progress/<id> etc. via Graph PATCH parentReference."""
+    """Move 1-Submitted/<id> → 2-In-Progress/<id> etc. via Graph PATCH parentReference.
+
+    Uses the APP token (client-credentials) for the write — MI tokens don't reliably carry
+    Files.ReadWrite.All. Reads (below) still use the MI.
+    """
     grp = Config.REQUEST_GROUP_ID
-    token = _mi_token()
+    token = _app_token() or _mi_token()  # prefer app-cred for write; fall back to MI
     if not token or _http is None:
         return False
     # get the item id of the source folder and the destination parent id
