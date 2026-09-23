@@ -31,7 +31,7 @@ import requests_source as rs       # noqa: E402
 from agent import parse_intent     # noqa: E402
 
 
-DEV_BASE = "https://stptviwebbotpoc.z23.web.core.windows.net"  # PoC dev preview (PTGDI storage; swap to Vale stidstaticsite002 when grant lands)
+DEV_BASE = "https://stptviwebbot.z23.web.core.windows.net"  # PoC dev preview (PTGDI storage; swap to Vale stidstaticsite002 when grant lands)
 PROD_BASE = "https://www.valeindonesia.com"
 
 

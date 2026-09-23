@@ -5,7 +5,7 @@ Publishes the built site to blob static-website storage as the VM's MANAGED IDEN
 (no secret, no interactive login — `az login --identity` must already be active on the VM),
 then verifies each changed URL serves HTTP 200 with expected content.
 
-PoC target = PTGDI storage (stptviwebbotpoc). Swapping to Vale's stidstaticsite002 later is a
+PoC target = PTGDI storage (stptviwebbot). Swapping to Vale's stidstaticsite002 later is a
 config change (account name + web base), not a code change — same managed-identity auth path,
 once the Vale RBAC grant lands.
 
@@ -26,8 +26,8 @@ from urllib.error import URLError, HTTPError
 
 
 # --- PoC config (swap these two for Vale dev when the grant lands) --------------------------
-DEV_ACCOUNT = "stptviwebbotpoc"
-DEV_WEB_BASE = "https://stptviwebbotpoc.z23.web.core.windows.net"
+DEV_ACCOUNT = "stptviwebbot"
+DEV_WEB_BASE = "https://stptviwebbot.z23.web.core.windows.net"
 PROD_ACCOUNT = "stidstaticsiteprod"   # not used in PoC; here for later
 PROD_WEB_BASE = "https://www.valeindonesia.com"
 
