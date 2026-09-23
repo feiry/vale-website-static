@@ -95,6 +95,10 @@ async def on_message(turn: TurnContext):
         await turn.send_activity(
             f"Rolling back {rid if rid else 'the last processed request'} …")
         res = op.rollback(target="dev", request_id=rid)
+        # If undone, move the request back to 1-Submitted (it's pending again).
+        undid = res.get("undid")
+        if res.get("ok") and undid:
+            rs.move_request(undid, rs.STAGE_SUBMITTED)
         icon = "↩️" if res.get("ok") else "❌"
         await _reply_card(turn, cards.text_card(
             f"{icon} Rollback", [res.get("message", "(no result)")]))
@@ -128,6 +132,11 @@ async def on_message(turn: TurnContext):
         # PoC: actually deploy to dev (PTGDI storage). Prod deploy stays gated until the
         # Vale storage grant lands, so only enable real deploy for the dev target here.
         result = op.process(rid, str(folder), target=target, deploy=(target == "dev"))
+
+        # On successful dev deploy, move the request out of 1-Submitted → 2-In-Progress
+        # so "what's pending" reflects reality (it's on dev, awaiting approval).
+        if result.ok and target == "dev":
+            rs.move_request(rid, rs.STAGE_IN_PROGRESS)
 
         stages = [{"stage": s.stage, "status": s.status, "rc": s.exit_code} for s in result.stages]
         if target == "prod" and result.ok:

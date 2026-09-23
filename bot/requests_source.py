@@ -150,6 +150,39 @@ def _sp_resolve(request_id: Optional[str]):
     return (request_id, local) if local else (None, None)
 
 
+def _sp_find_folder(request_id: str, stages: list[str]) -> Optional[str]:
+    """Return the first stage folder that currently contains request_id, else None."""
+    grp = Config.REQUEST_GROUP_ID
+    for st in stages:
+        data = _sp_get(f"/groups/{grp}/drive/root:/{st}:/children")
+        if data and any(i.get("name") == request_id and "folder" in i for i in data.get("value", [])):
+            return st
+    return None
+
+
+def _sp_move(request_id: str, from_stage: str, to_stage: str) -> bool:
+    """Move 1-Submitted/<id> → 2-In-Progress/<id> etc. via Graph PATCH parentReference."""
+    grp = Config.REQUEST_GROUP_ID
+    token = _mi_token()
+    if not token or _http is None:
+        return False
+    # get the item id of the source folder and the destination parent id
+    src = _sp_get(f"/groups/{grp}/drive/root:/{from_stage}/{request_id}")
+    dst_parent = _sp_get(f"/groups/{grp}/drive/root:/{to_stage}")
+    if not src or not dst_parent:
+        return False
+    try:
+        r = _http.patch(
+            f"{_GRAPH}/groups/{grp}/drive/items/{src['id']}",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"parentReference": {"id": dst_parent["id"]}},
+            timeout=15,
+        )
+        return r.status_code in (200, 201)
+    except Exception:  # noqa: BLE001
+        return False
+
+
 # --------------------------------------------------------------------------- #
 # Public interface
 # --------------------------------------------------------------------------- #
@@ -165,3 +198,41 @@ def resolve(request_id: Optional[str]) -> tuple[Optional[str], Optional[Path]]:
     exists, that one is used ("process the request").
     """
     return _sp_resolve(request_id) if _use_sharepoint() else _local_resolve(request_id)
+
+
+# stage constants for callers
+STAGE_SUBMITTED = SUBMITTED
+STAGE_IN_PROGRESS = IN_PROGRESS
+STAGE_DONE = DONE
+_ALL_STAGES = [SUBMITTED, IN_PROGRESS, DONE]
+
+
+def move_request(request_id: str, to_stage: str) -> bool:
+    """
+    Move a request folder to another stage (1-Submitted / 2-In-Progress / 3-Done-Deployed).
+    Idempotent: if it's already in to_stage, returns True. Best-effort — returns False on failure
+    so callers can warn without failing the whole operation. Local mode moves the on-disk folder.
+    """
+    if to_stage not in _ALL_STAGES:
+        return False
+    if _use_sharepoint():
+        cur = _sp_find_folder(request_id, _ALL_STAGES)
+        if cur is None:
+            return False
+        if cur == to_stage:
+            return True
+        return _sp_move(request_id, cur, to_stage)
+    # local mode
+    root = _local_root()
+    for st in _ALL_STAGES:
+        src = root / st / request_id
+        if src.is_dir():
+            if st == to_stage:
+                return True
+            dst = root / to_stage / request_id
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            if dst.exists():
+                shutil.rmtree(dst)
+            shutil.move(str(src), str(dst))
+            return True
+    return False
