@@ -224,36 +224,61 @@ _NEWS_LISTINGS = [
     "/in/indonesia/all-news.html",
 ]
 
-# data file per type (relative to repo root) — used for rollback snapshots
+# Fixed pages each type deploys. news is special (article path is dynamic, parsed from
+# EN:/ID: output) + always-refreshed listings. The other three edit a fixed EN+ID page pair.
+_TYPE_PAGES = {
+    "news": _NEWS_LISTINGS,  # PLUS the dynamic article pages (added in _auto_deployer)
+    "vacancy": ["/indonesia/career.html", "/in/indonesia/career.html"],
+    "awards": ["/indonesia/awards-and-certifications.html",
+               "/in/indonesia/penghargaan-dan-sertifikasi.html"],
+    "documents": ["/indonesia/documents-and-reports.html",
+                  "/in/indonesia/dokumen-dan-laporan.html"],
+}
+
+# data file per type (relative to repo root) — used for rollback snapshots.
+# news/documents are data-driven (JSON → build). vacancy/awards mutate HTML directly, so their
+# rollback snapshots the PAGES instead (see _snapshot_state).
 _DATA_FILE = {
     "news": "site-data/news-indonesia.json",
     "documents": "site-data/documents.json",
-    # vacancy/awards mutate HTML pages directly, no single data file → rollback = data snapshot of whole site-data is impractical; handled as "unsupported" below
 }
 
 
-def _snapshot_data_file(rtype: str) -> Optional[str]:
-    """Copy the type's data file to the rollback dir before apply. Returns the snapshot path."""
-    rel = _DATA_FILE.get(rtype)
-    if not rel:
-        return None
-    src = REPO_ROOT / rel
-    if not src.is_file():
-        return None
+def _snapshot_state(rtype: str) -> dict:
+    """
+    Snapshot pre-apply state for rollback. Returns {"data": <path|None>, "pages": {rel: path}}.
+    - Data-driven types (news, documents): snapshot the JSON data file.
+    - HTML-direct types (vacancy, awards): snapshot the EN+ID pages they edit (no data file).
+    """
     ROLLBACK_DIR.mkdir(exist_ok=True)
-    snap = ROLLBACK_DIR / f"pre-{rtype}-{int(time.time()*1000)}.json"
-    shutil.copy2(src, snap)
-    return str(snap)
+    stamp = int(time.time() * 1000)
+    snap = {"data": None, "pages": {}}
+    rel = _DATA_FILE.get(rtype)
+    if rel and (REPO_ROOT / rel).is_file():
+        dst = ROLLBACK_DIR / f"pre-{rtype}-data-{stamp}.json"
+        shutil.copy2(REPO_ROOT / rel, dst)
+        snap["data"] = str(dst)
+    if rtype in ("vacancy", "awards"):
+        site_root = REPO_ROOT / "site" / "vale.com"
+        for i, urlpath in enumerate(_TYPE_PAGES.get(rtype, [])):
+            src = site_root / urlpath.lstrip("/")
+            if src.is_file():
+                dst = ROLLBACK_DIR / f"pre-{rtype}-page{i}-{stamp}.html"
+                shutil.copy2(src, dst)
+                snap["pages"][urlpath.lstrip("/")] = str(dst)
+    return snap
 
 
 def _write_rollback_manifest(request_id: str, rtype: str, target: str,
-                             data_snapshot: Optional[str], deployed_paths: list[str]) -> None:
+                             snapshot: dict, deployed_paths: list[str]) -> None:
     """Record what a successful run did, so `rollback` can undo it. Newest file = last run."""
     try:
         ROLLBACK_DIR.mkdir(exist_ok=True)
         manifest = {
             "at": _now(), "request_id": request_id, "type": rtype, "target": target,
-            "data_file": _DATA_FILE.get(rtype), "data_snapshot": data_snapshot,
+            "data_file": _DATA_FILE.get(rtype),
+            "data_snapshot": snapshot.get("data"),
+            "page_snapshots": snapshot.get("pages", {}),  # rel -> snapshot path (vacancy/awards)
             "deployed_paths": deployed_paths,
         }
         mf = ROLLBACK_DIR / f"run-{int(time.time()*1000)}.json"
@@ -264,38 +289,46 @@ def _write_rollback_manifest(request_id: str, rtype: str, target: str,
 
 def _auto_deployer(result: OperatorResult):
     """
-    Build a real deployer from the run's output. Parses the `EN:`/`ID:` output-URL lines the
-    intake script printed (the authoritative changed article paths) and adds the news listing
-    pages. Maps each URL path to its on-disk file under site/vale.com. Returns None if no URLs
-    were found (nothing to deploy).
+    Build a type-aware deployer for the run's changed pages. Returns None if nothing to deploy.
+
+    - news:      dynamic article pages (parsed from the intake's EN:/ID: output-URL lines)
+                 + the always-refreshed all-news listings.
+    - vacancy / awards / documents: a fixed EN+ID page pair (see _TYPE_PAGES).
     """
     import deployer as dep_mod
 
     site_root = REPO_ROOT / dep_mod.SITE_ROOT_REL
-    paths: list[str] = []
-    title_needle = None
-    for st in result.stages:
-        for line in (st.stdout_tail or "").splitlines():
-            line = line.strip()
-            if line.startswith(("EN:", "ID:")) and "/" in line:
-                paths.append(line.split(":", 1)[1].strip())
-    # de-dupe, keep article paths + always-refreshed listings
-    seen = set()
-    all_paths = []
-    for p in paths + (_NEWS_LISTINGS if result.request_type == "news" else []):
-        if p not in seen:
-            seen.add(p)
-            all_paths.append(p)
-    if not all_paths:
+    rtype = result.request_type
+    all_paths: list[str] = []
+
+    if rtype == "news":
+        # dynamic article paths from EN:/ID: output lines
+        for st in result.stages:
+            for line in (st.stdout_tail or "").splitlines():
+                line = line.strip()
+                if line.startswith(("EN:", "ID:")) and "/" in line:
+                    all_paths.append(line.split(":", 1)[1].strip())
+        all_paths += _NEWS_LISTINGS
+    else:
+        # fixed pages for vacancy / awards / documents
+        all_paths = list(_TYPE_PAGES.get(rtype, []))
+
+    # de-dupe, keep order, and only deploy files that actually exist on disk
+    seen, kept = set(), []
+    for p in all_paths:
+        rel = p.lstrip("/")
+        if p in seen:
+            continue
+        seen.add(p)
+        if (site_root / rel).is_file():
+            kept.append(p)
+    if not kept:
         return None
 
-    # local file for a URL path: strip leading '/', join under site/vale.com
-    changed_files = [(site_root / p.lstrip("/"), p.lstrip("/")) for p in all_paths]
-    # verify: article pages get a content needle (their own path is enough as a smoke check);
-    # listings just need 200. Keep needle None to avoid brittle title matching across chrome.
-    verify_urls = [(p, None) for p in all_paths]
+    changed_files = [(site_root / p.lstrip("/"), p.lstrip("/")) for p in kept]
+    verify_urls = [(p, None) for p in kept]
     # stash the deployed blob paths on the result so process() can record a rollback manifest
-    result._deployed_paths = [p.lstrip("/") for p in all_paths]
+    result._deployed_paths = [p.lstrip("/") for p in kept]
     return dep_mod.make_deployer(REPO_ROOT, changed_files, verify_urls)
 
 
@@ -370,8 +403,9 @@ def process(request_id: str, folder: str | os.PathLike, target: str = "dev",
                 return finish(True, f"dry-run OK for {rtype} (preview only; apply=False)")
 
             # 3) APPLY -------------------------------------------------------
-            # snapshot the data file BEFORE apply, so rollback can restore the pre-request state
-            data_snapshot = _snapshot_data_file(rtype)
+            # snapshot pre-apply state BEFORE apply, so rollback can restore it (data file for
+            # news/documents; the edited pages themselves for vacancy/awards)
+            snapshot = _snapshot_state(rtype)
             ap = _run(["python3", str(intake), str(req_json)], cwd=REPO_ROOT)
             result.stages.append(StageResult(
                 Stage.APPLY, Status.OK if ap.returncode == 0 else Status.FAILED,
@@ -415,8 +449,8 @@ def process(request_id: str, folder: str | os.PathLike, target: str = "dev",
                 return finish(False, f"deploy to {target} failed: {dep.detail}")
 
             # record a rollback manifest so `rollback` can undo this run
-            if data_snapshot and result._deployed_paths:
-                _write_rollback_manifest(request_id, rtype, target, data_snapshot, result._deployed_paths)
+            if result._deployed_paths and (snapshot.get("data") or snapshot.get("pages")):
+                _write_rollback_manifest(request_id, rtype, target, snapshot, result._deployed_paths)
 
             return finish(True, f"{rtype} deployed to {target} and verified")
 
@@ -463,52 +497,59 @@ def rollback(target: str = "dev") -> dict:
                 return done(False, "nothing to roll back — no processed request recorded")
             mf = json.loads(mf_path.read_text())
             rtype = mf.get("type"); rid = mf.get("request_id")
-            data_rel = mf.get("data_file"); snap = mf.get("data_snapshot")
+            data_rel = mf.get("data_file"); data_snap = mf.get("data_snapshot")
+            page_snaps = mf.get("page_snapshots", {})   # rel -> snapshot path (vacancy/awards)
             deployed = mf.get("deployed_paths", [])
-
-            # 1) restore the data file from the pre-run snapshot
-            if data_rel and snap and Path(snap).is_file():
-                shutil.copy2(snap, REPO_ROOT / data_rel)
-            else:
-                return done(False, f"cannot roll back {rid}: data snapshot missing")
-
-            # 2) rebuild so generated pages/listings match the restored data
-            spec = TYPE_SPECS.get(rtype, {})
-            build_script = spec.get("build")
-            if build_script:
-                bp = _run(["python3", str(REPO_ROOT / build_script)], cwd=REPO_ROOT)
-                if bp.returncode != 0:
-                    return done(False, f"rollback: rebuild failed (rc={bp.returncode})")
-
-            # 3) delete the blobs this run deployed (dev storage, as the managed identity)
             import deployer as dep_mod
-            account = dep_mod.DEV_ACCOUNT if target == "dev" else dep_mod.PROD_ACCOUNT
-            deleted, failed = 0, []
-            for blob in deployed:
-                cp = subprocess.run(
-                    ["az", "storage", "blob", "delete", "--account-name", account,
-                     "--auth-mode", "login", "--container-name", "$web", "--name", blob,
-                     "--only-show-errors"],
-                    capture_output=True, text=True, timeout=60)
-                if cp.returncode == 0:
-                    deleted += 1
-                else:
-                    failed.append(blob)
-
-            # 4) re-upload the rebuilt listings (they changed when we removed the record)
-            #    so the listing no longer references the rolled-back article.
             site_root = REPO_ROOT / dep_mod.SITE_ROOT_REL
-            for lp in [p.lstrip("/") for p in _NEWS_LISTINGS] if rtype == "news" else []:
-                local = site_root / lp
-                if local.is_file():
-                    dep_mod._az_upload(account, local, lp)
 
-            # 5) archive the manifest so a second rollback doesn't re-undo
+            # 1) RESTORE local state to pre-run
+            if data_rel and data_snap and Path(data_snap).is_file():
+                # data-driven (news/documents): restore JSON, then rebuild pages
+                shutil.copy2(data_snap, REPO_ROOT / data_rel)
+                build_script = TYPE_SPECS.get(rtype, {}).get("build")
+                if build_script:
+                    bp = _run(["python3", str(REPO_ROOT / build_script)], cwd=REPO_ROOT)
+                    if bp.returncode != 0:
+                        return done(False, f"rollback: rebuild failed (rc={bp.returncode})")
+            elif page_snaps:
+                # HTML-direct (vacancy/awards): restore the edited pages from snapshot
+                for rel, snap_path in page_snaps.items():
+                    if Path(snap_path).is_file():
+                        shutil.copy2(snap_path, site_root / rel)
+            else:
+                return done(False, f"cannot roll back {rid}: no snapshot recorded")
+
+            # 2) RE-DEPLOY the restored pages so dev matches (overwrite what the run deployed).
+            #    For news the article page no longer exists post-rebuild → delete it; for the
+            #    fixed pages (listings, career, awards, docs) → re-upload the restored version.
+            account = dep_mod.DEV_ACCOUNT if target == "dev" else dep_mod.PROD_ACCOUNT
+            deleted, reuploaded, failed = 0, 0, []
+            for blob in deployed:
+                local = site_root / blob
+                if local.is_file():
+                    ok, _ = dep_mod._az_upload(account, local, blob)  # restored page → overwrite
+                    reuploaded += 1 if ok else 0
+                    if not ok:
+                        failed.append(blob)
+                else:
+                    # page no longer exists locally (e.g. a rolled-back news article) → delete blob
+                    cp = subprocess.run(
+                        ["az", "storage", "blob", "delete", "--account-name", account,
+                         "--auth-mode", "login", "--container-name", "$web", "--name", blob,
+                         "--only-show-errors"],
+                        capture_output=True, text=True, timeout=60)
+                    deleted += 1 if cp.returncode == 0 else 0
+                    if cp.returncode != 0:
+                        failed.append(blob)
+
+            # 3) archive the manifest so a second rollback doesn't re-undo
             mf_path.rename(mf_path.with_suffix(".done"))
 
-            msg = f"rolled back {rtype} request '{rid}' on {target}: restored data, rebuilt, deleted {deleted} blob(s)"
+            msg = (f"rolled back {rtype} request '{rid}' on {target}: restored state, "
+                   f"deleted {deleted} + re-uploaded {reuploaded} page(s)")
             if failed:
-                msg += f" ({len(failed)} blob delete(s) failed)"
+                msg += f" ({len(failed)} storage op(s) failed)"
             return done(True, msg, undid=rid)
     except OperatorError as e:
         return done(False, str(e))
