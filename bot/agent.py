@@ -56,8 +56,15 @@ def _extract_rid(t: str) -> Optional[str]:
 
 def parse_intent(text: str, value: Optional[dict] = None) -> Intent:
     # 1) Adaptive Card button submissions arrive as `value`, not text — trust them first.
-    if value and isinstance(value, dict) and value.get("action") == "approve_prod":
-        return Intent(kind="approve_prod", request_id=value.get("request_id"), target="prod")
+    if value and isinstance(value, dict) and value.get("action"):
+        act = value.get("action")
+        rid = value.get("request_id")
+        if act == "approve_prod":
+            return Intent(kind="approve_prod", request_id=rid, target="prod")
+        if act == "process":
+            return Intent(kind="process", request_id=rid, target="dev")
+        if act == "rollback":
+            return Intent(kind="rollback", request_id=rid, target="dev")
 
     t = (text or "").strip()
     if not t:

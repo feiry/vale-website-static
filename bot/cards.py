@@ -43,13 +43,34 @@ def result_card(request_id: str, rtype: str, ok: bool, message: str,
                          "text": f"[{url}]({url})"})
 
     actions = []
-    # Only offer the prod-approval button when the dev step actually succeeded.
+    # Only offer action buttons when the dev step actually succeeded.
     if ok:
         actions.append({
             "type": "Action.Submit", "title": "Approve for prod",
             "data": {"action": "approve_prod", "request_id": request_id},
             "style": "positive",
         })
+        actions.append({
+            "type": "Action.Submit", "title": "Rollback",
+            "data": {"action": "rollback", "request_id": request_id},
+            "style": "destructive",
+        })
+    return _card(body, actions or None)
+
+
+def pending_card(request_ids: list[str]) -> dict:
+    """List of pending requests, each with a one-click [Process] button."""
+    body = [{"type": "TextBlock", "size": "Medium", "weight": "Bolder", "text": "Pending requests"}]
+    actions = []
+    if not request_ids:
+        body.append({"type": "TextBlock", "wrap": True, "text": "(none in 1-Submitted)"})
+    else:
+        for rid in request_ids:
+            body.append({"type": "TextBlock", "wrap": True, "text": f"• {rid}"})
+            actions.append({
+                "type": "Action.Submit", "title": f"Process {rid}",
+                "data": {"action": "process", "request_id": rid},
+            })
     return _card(body, actions or None)
 
 

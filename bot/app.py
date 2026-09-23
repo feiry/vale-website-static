@@ -102,9 +102,7 @@ async def on_message(turn: TurnContext):
 
     if intent.kind == "status":
         pending = rs.list_submitted()
-        await _reply_card(turn, cards.text_card(
-            "Pending requests",
-            [f"• {p}" for p in pending] or ["(none in 1-Submitted)"]))
+        await _reply_card(turn, cards.pending_card(pending))
         return
 
     if intent.kind in ("process", "approve_prod"):
