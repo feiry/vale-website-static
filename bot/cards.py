@@ -70,6 +70,7 @@ def pending_card(request_ids: list[str]) -> dict:
             actions.append({
                 "type": "Action.Submit", "title": f"Process {rid}",
                 "data": {"action": "process", "request_id": rid},
+                "style": "positive",
             })
     return _card(body, actions or None)
 
