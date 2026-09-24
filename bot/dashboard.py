@@ -165,19 +165,20 @@ def render_dashboard() -> str:
 <meta name=viewport content="width=device-width,initial-scale=1">
 <title>PTVI Website Bot — Dashboard</title>
 <style>
- body{{font-family:system-ui,Segoe UI,Arial;margin:0;background:#0d1117;color:#e6edf3;font-size:17px}}
+ body{{font-family:system-ui,Segoe UI,Arial;margin:0;background:#0d1117;color:#e6edf3;font-size:19px}}
  header{{background:#161b22;padding:20px 28px;border-bottom:1px solid #30363d}}
- h1{{margin:0;font-size:24px}} .sub{{color:#8b949e;font-size:15px;margin-top:6px}}
+ h1{{margin:0;font-size:26px}} .sub{{color:#8b949e;font-size:16px;margin-top:6px}}
  .cards{{display:flex;flex-wrap:wrap;gap:18px;padding:28px}}
  .card{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:20px;min-width:170px}}
- .card .n{{font-size:38px;font-weight:700}} .card .l{{color:#8b949e;font-size:14px;text-transform:uppercase}}
+ .card .n{{font-size:40px;font-weight:700}} .card .l{{color:#8b949e;font-size:15px;text-transform:uppercase}}
  .ok{{color:#3fb950}} .bad{{color:#f85149}}
- .grid{{display:flex;flex-wrap:wrap;gap:18px;padding:0 28px 28px}}
- .box{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:20px;flex:1;min-width:280px}}
- .box h3{{margin:0 0 10px;font-size:17px}} ul{{margin:0;padding-left:20px;font-size:15px;line-height:1.9}}
- table{{width:100%;border-collapse:collapse;font-size:15px}}
- th,td{{text-align:left;padding:9px 10px;border-bottom:1px solid #21262d}}
- th{{color:#8b949e;font-weight:600;font-size:14px}}
+ .grid{{display:flex;flex-wrap:wrap;gap:18px;padding:0 28px 28px;align-items:flex-start}}
+ .box{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:20px}}
+ .box.narrow{{flex:1;min-width:240px}} .box.wide{{flex:2;min-width:340px}} .box.full{{flex:1 1 100%}}
+ .box h3{{margin:0 0 12px;font-size:18px}} ul{{margin:0;padding-left:20px;font-size:16px;line-height:2}}
+ table{{width:100%;border-collapse:collapse;font-size:16px}}
+ th,td{{text-align:left;padding:10px 10px;border-bottom:1px solid #21262d}}
+ th{{color:#8b949e;font-weight:600;font-size:15px}}
  .t{{color:#8b949e;white-space:nowrap}} .who{{font-weight:600}}
  .via{{color:#8b949e;font-size:14px;white-space:nowrap}}
  .verb{{background:#21262d;padding:2px 10px;border-radius:10px;font-size:14px;color:#c9d1d9}}
@@ -198,11 +199,11 @@ def render_dashboard() -> str:
  <div class=card><div class=n>{len(users)}</div><div class=l>Active users</div></div>
 </div>
 <div class=grid>
- <div class=box><h3>By type</h3><ul>{type_rows or '<li>none</li>'}</ul></div>
- <div class=box><h3>Who's using it</h3><ul>{user_rows or '<li>none</li>'}</ul></div>
- <div class=box><h3>Recent errors</h3><ul>{err_rows}</ul></div>
+ <div class="box narrow"><h3>By type</h3><ul>{type_rows or '<li>none</li>'}</ul></div>
+ <div class="box narrow"><h3>Who's using it</h3><ul>{user_rows or '<li>none</li>'}</ul></div>
+ <div class="box wide"><h3>Recent errors</h3><ul>{err_rows}</ul></div>
 </div>
-<div class=grid><div class=box style="flex:1">
+<div class=grid><div class="box full">
  <h3>Activity feed</h3>
  <table><tr><th>time</th><th>who</th><th>via</th><th>action</th><th>target</th><th>ok</th><th>detail</th></tr>
  {rows}</table>
