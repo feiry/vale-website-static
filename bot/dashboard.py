@@ -92,60 +92,54 @@ def render_dashboard() -> str:
     errors = [r for r in runs if not r.get("ok")] + [x for x in rolls if not x.get("ok")]
 
     # Build a correlated activity feed: events are time-ordered, and an `auth` event is
-    # immediately followed by the process/rollback it authorized (same actor). So we attribute
-    # each action to the actor of the nearest PRECEDING auth event, and merge them into one row:
-    #   who · action · target · result
-    # Rows: (at, who, verb, target, result_icon, detail)
+    # immediately followed by the process/rollback it authorized (same actor). We attribute each
+    # action to the actor + INPUT METHOD of the nearest preceding auth event, and merge into one
+    # row. Input method: an utterance of "[button:...]" = a button click; anything else = typed.
+    # Row tuple: (raw_iso, who, via, verb, target, result_icon, detail)
+    def _via(utt: str) -> str:
+        if not utt:
+            return ""                      # unknown (historical event, no utterance captured)
+        return "🖱️ clicked" if utt.startswith("[button:") else "⌨️ typed"
+
     feed = []
-    last_actor = "?"      # name from the most recent auth event
-    last_auth_utt = ""    # what they typed/clicked
-    pending_auth = None   # an auth event not yet consumed by an action
+    last_actor = "?"
+    last_via = ""
     for e in events:
         at = e.get("at", "")
         if e.get("event") == "auth":
             last_actor = _name(e, name_map)
-            last_auth_utt = e.get("utterance", "")
+            last_via = _via(e.get("utterance", ""))
             if e.get("allowed") is False:
-                # a denial is itself noteworthy — show it
-                feed.append((at, last_actor, "denied", "", "🚫", "not authorized"))
-                pending_auth = None
-            else:
-                pending_auth = (at, last_actor, last_auth_utt)
+                feed.append((at, last_actor, last_via, "denied", "", "🚫", "not authorized"))
         elif "stages" in e:  # process
-            feed.append((at, last_actor, f"processed {e.get('type','?')}",
+            feed.append((at, last_actor, last_via, f"processed {e.get('type','?')}",
                          e.get("request_id", ""), "✅" if e.get("ok") else "❌",
                          "" if e.get("ok") else e.get("message", "")[:60]))
-            pending_auth = None
         elif e.get("event") == "rollback":
-            feed.append((at, last_actor, "rolled back",
+            feed.append((at, last_actor, last_via, "rolled back",
                          e.get("target_id") or "", "✅" if e.get("ok") else "❌",
                          e.get("message", "")[:60] if not e.get("ok") else ""))
-            pending_auth = None
-        else:
-            pending_auth = None
-    # Any auth with a real utterance that DIDN'T trigger an action (e.g. help / what's pending)
-    # is a plain message — show it so the trail is complete, but only if it said something.
-    # (Re-scan to add these without double-counting the ones consumed above is complex; instead
-    # we already show actions. Plain "help"/"what's pending" show up as their own auth utterance.)
-    plain = []
+    # plain messages (help / what's pending) that carried an utterance but triggered no action
     for e in events:
         if e.get("event") == "auth" and e.get("allowed") and e.get("utterance"):
-            plain.append((e.get("at", ""), _name(e, name_map), "said",
-                          f"“{e.get('utterance')}”", "💬", ""))
-    feed.extend(plain)
+            utt = e.get("utterance", "")
+            if not utt.startswith("[button:"):  # typed something conversational
+                feed.append((e.get("at", ""), _name(e, name_map), "⌨️ typed", "said",
+                             f"“{utt}”", "💬", ""))
     feed.sort(key=lambda x: x[0], reverse=True)
 
     def esc(s):
         return html.escape(str(s))
 
     rows = "".join(
-        f"<tr><td class=t>{esc(_fmt(at))}</td>"
+        f"<tr><td class=t data-utc=\"{esc(at)}\">{esc(_fmt(at))}</td>"
         f"<td class=who>{esc(who)}</td>"
+        f"<td class=via>{esc(via)}</td>"
         f"<td><span class=verb>{esc(verb)}</span></td>"
         f"<td class=tgt>{esc(target)}</td>"
         f"<td class=ic>{icon}</td>"
         f"<td class=msg>{esc(detail)}</td></tr>"
-        for at, who, verb, target, icon, detail in feed[:100]
+        for at, who, via, verb, target, icon, detail in feed[:100]
     )
     type_rows = "".join(f"<li>{esc(t)}: <b>{n}</b></li>" for t, n in by_type.most_common())
     user_rows = "".join(f"<li>{esc(u)}: <b>{n}</b> msgs</li>" for u, n in users.most_common())
@@ -175,6 +169,7 @@ def render_dashboard() -> str:
  th,td{{text-align:left;padding:6px 8px;border-bottom:1px solid #21262d}}
  th{{color:#8b949e;font-weight:600}}
  .t{{color:#8b949e;white-space:nowrap}} .who{{font-weight:600}}
+ .via{{color:#8b949e;font-size:12px;white-space:nowrap}}
  .verb{{background:#21262d;padding:1px 8px;border-radius:10px;font-size:12px;color:#c9d1d9}}
  .tgt{{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#58a6ff}}
  .ic{{text-align:center}}
@@ -196,8 +191,21 @@ def render_dashboard() -> str:
 </div>
 <div class=grid><div class=box style="flex:1">
  <h3>Activity feed</h3>
- <table><tr><th>time</th><th>who</th><th>action</th><th>target</th><th>ok</th><th>detail</th></tr>
+ <table><tr><th>time</th><th>who</th><th>via</th><th>action</th><th>target</th><th>ok</th><th>detail</th></tr>
  {rows}</table>
 </div></div>
-<script>setTimeout(()=>location.reload(),30000)</script>
+<script>
+// Convert server-side UTC timestamps to the VIEWER'S local timezone (their computer).
+(function(){{
+  const opts={{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}};
+  document.querySelectorAll('td.t[data-utc]').forEach(el=>{{
+    const iso=el.getAttribute('data-utc'); if(!iso) return;
+    const d=new Date(iso); if(isNaN(d)) return;
+    el.textContent=new Intl.DateTimeFormat(undefined,opts).format(d);
+  }});
+  const tz=Intl.DateTimeFormat().resolvedOptions().timeZone||'local';
+  const sub=document.querySelector('.sub'); if(sub) sub.textContent+=' · times shown in '+tz;
+}})();
+setTimeout(()=>location.reload(),30000);
+</script>
 </body></html>"""
