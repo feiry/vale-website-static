@@ -10,6 +10,7 @@ AND passes the SAME auth gate as processing.
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -67,12 +68,18 @@ async def _reply_card(turn: TurnContext, card: dict):
 async def on_message(turn: TurnContext):
     act = turn.activity
     sender_oid = None
-    if act.from_property and act.from_property.aad_object_id:
+    sender_name = None
+    if act.from_property:
         sender_oid = act.from_property.aad_object_id
+        sender_name = act.from_property.name  # Bot Framework provides the display name
+    # what the user typed/clicked, for the audit trail
+    utterance = (act.text or "").strip() or (
+        f"[button:{act.value.get('action')}]" if isinstance(act.value, dict) and act.value.get("action") else "")
 
     # --- Layer 2: verify sender on EVERY message, before any action ---
     allowed, reason = auth.is_authorised(sender_oid)
-    op._audit_line({"event": "auth", "sender": sender_oid, "allowed": allowed, "reason": reason})
+    op._audit_line({"event": "auth", "sender": sender_oid, "sender_name": sender_name,
+                    "utterance": utterance[:100], "allowed": allowed, "reason": reason})
     if not allowed:
         await turn.send_activity("You're not authorized to submit website requests.")
         return
@@ -169,10 +176,20 @@ class _Bot:
 _BOT = _Bot()
 
 
+async def dashboard(req: Request) -> Response:
+    # token-gated (DASHBOARD_TOKEN) so the who-did-what trail isn't world-readable.
+    import dashboard as dash
+    token = os.environ.get("DASHBOARD_TOKEN", "")
+    if token and req.query.get("token") != token:
+        return web.Response(status=401, text="unauthorized — append ?token=…")
+    return web.Response(text=dash.render_dashboard(), content_type="text/html")
+
+
 def create_app() -> web.Application:
     app = web.Application(middlewares=[aiohttp_error_middleware])
     app.router.add_post("/api/messages", messages)
     app.router.add_get("/healthz", lambda r: web.Response(text="ok"))
+    app.router.add_get("/dashboard", dashboard)
     return app
 
 
