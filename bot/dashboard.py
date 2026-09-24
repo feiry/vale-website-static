@@ -46,8 +46,27 @@ def _fmt(ts: str) -> str:
     return ts.replace("T", " ")[5:19] if ts else "?"
 
 
-def _name(ev: dict) -> str:
-    return ev.get("sender_name") or (ev.get("sender") or "")[:8] or "?"
+# Seed for oids that appear in historical events (logged before name-capture existed).
+# New events carry sender_name directly; this fills in the old ones.
+_OID_NAMES = {
+    "c1c5b1bc-93c0-44f8-b7a7-93e551a037b9": "Feiry",
+    "5b0139e2-9c1f-48f8-9fb1-45297f652a38": "Peter Tirtawidjaja",
+}
+
+
+def _build_name_map(events: list[dict]) -> dict:
+    """oid → display name, learned from any event that carries sender_name, plus the seed."""
+    m = dict(_OID_NAMES)
+    for e in events:
+        oid, nm = e.get("sender"), e.get("sender_name")
+        if oid and nm:
+            m[oid] = nm
+    return m
+
+
+def _name(ev: dict, name_map: dict) -> str:
+    oid = ev.get("sender") or ""
+    return ev.get("sender_name") or name_map.get(oid) or (oid[:8] if oid else "?")
 
 
 def render_dashboard() -> str:
@@ -58,6 +77,7 @@ def render_dashboard() -> str:
     runs = [e for e in events if "stages" in e]                      # process
     rolls = [e for e in events if e.get("event") == "rollback"]
     auths = [e for e in events if e.get("event") == "auth"]
+    name_map = _build_name_map(events)
 
     # counts
     ok_runs = sum(1 for r in runs if r.get("ok"))
@@ -65,7 +85,7 @@ def render_dashboard() -> str:
     by_type = Counter(r.get("type", "?") for r in runs)
     denials = sum(1 for a in auths if a.get("allowed") is False)
     # active users (by name) from auth events
-    users = Counter(_name(a) for a in auths if a.get("allowed"))
+    users = Counter(_name(a, name_map) for a in auths if a.get("allowed"))
     last_activity = max((e.get("at", "") for e in events), default="")
 
     # recent errors
@@ -83,7 +103,7 @@ def render_dashboard() -> str:
                          e.get("target_id") or "", e.get("message", "")[:50]))
         elif e.get("event") == "auth":
             feed.append((at, "MESSAGE", "", ("🔓" if e.get("allowed") else "🚫"),
-                         _name(e), e.get("utterance", "")))
+                         _name(e, name_map), e.get("utterance", "")))
     feed.sort(key=lambda x: x[0], reverse=True)
 
     def esc(s):
