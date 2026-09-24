@@ -101,6 +101,11 @@ def render_dashboard() -> str:
             return ""                      # unknown (historical event, no utterance captured)
         return "🖱️ clicked" if utt.startswith("[button:") else "⌨️ typed"
 
+    # icon per request type — makes the feed scannable at a glance
+    TYPE_ICON = {"news": "📰", "vacancy": "💼", "documents": "📄", "awards": "🏆"}
+    def _ti(t: str) -> str:
+        return TYPE_ICON.get(t, "•")
+
     feed = []
     last_actor = "?"
     last_via = ""
@@ -112,11 +117,16 @@ def render_dashboard() -> str:
             if e.get("allowed") is False:
                 feed.append((at, last_actor, last_via, "denied", "", "🚫", "not authorized"))
         elif "stages" in e:  # process
-            feed.append((at, last_actor, last_via, f"processed {e.get('type','?')}",
+            t = e.get("type", "?")
+            feed.append((at, last_actor, last_via, f"{_ti(t)} processed {t}",
                          e.get("request_id", ""), "✅" if e.get("ok") else "❌",
                          "" if e.get("ok") else e.get("message", "")[:60]))
         elif e.get("event") == "rollback":
-            feed.append((at, last_actor, last_via, "rolled back",
+            # rollback audit message is like "rolled back news request '...'" — pull the type
+            msg = e.get("message", "")
+            rt = next((t for t in TYPE_ICON if f"back {t} " in msg), None)
+            verb = f"{_ti(rt)} rolled back" if rt else "rolled back"
+            feed.append((at, last_actor, last_via, verb,
                          e.get("target_id") or "", "✅" if e.get("ok") else "❌",
                          e.get("message", "")[:60] if not e.get("ok") else ""))
     # plain messages (help / what's pending) that carried an utterance but triggered no action
@@ -141,7 +151,7 @@ def render_dashboard() -> str:
         f"<td class=msg>{esc(detail)}</td></tr>"
         for at, who, via, verb, target, icon, detail in feed[:100]
     )
-    type_rows = "".join(f"<li>{esc(t)}: <b>{n}</b></li>" for t, n in by_type.most_common())
+    type_rows = "".join(f"<li>{_ti(t)} {esc(t)}: <b>{n}</b></li>" for t, n in by_type.most_common())
     user_rows = "".join(f"<li>{esc(u)}: <b>{n}</b> msgs</li>" for u, n in users.most_common())
     err_rows = "".join(
         f"<li>{esc(_fmt(e.get('at','')))} — {esc(e.get('type') or 'rollback')}: "
@@ -155,25 +165,25 @@ def render_dashboard() -> str:
 <meta name=viewport content="width=device-width,initial-scale=1">
 <title>PTVI Website Bot — Dashboard</title>
 <style>
- body{{font-family:system-ui,Segoe UI,Arial;margin:0;background:#0d1117;color:#e6edf3}}
- header{{background:#161b22;padding:16px 24px;border-bottom:1px solid #30363d}}
- h1{{margin:0;font-size:18px}} .sub{{color:#8b949e;font-size:13px;margin-top:4px}}
- .cards{{display:flex;flex-wrap:wrap;gap:16px;padding:24px}}
- .card{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;min-width:150px}}
- .card .n{{font-size:28px;font-weight:700}} .card .l{{color:#8b949e;font-size:12px;text-transform:uppercase}}
+ body{{font-family:system-ui,Segoe UI,Arial;margin:0;background:#0d1117;color:#e6edf3;font-size:17px}}
+ header{{background:#161b22;padding:20px 28px;border-bottom:1px solid #30363d}}
+ h1{{margin:0;font-size:24px}} .sub{{color:#8b949e;font-size:15px;margin-top:6px}}
+ .cards{{display:flex;flex-wrap:wrap;gap:18px;padding:28px}}
+ .card{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:20px;min-width:170px}}
+ .card .n{{font-size:38px;font-weight:700}} .card .l{{color:#8b949e;font-size:14px;text-transform:uppercase}}
  .ok{{color:#3fb950}} .bad{{color:#f85149}}
- .grid{{display:flex;flex-wrap:wrap;gap:16px;padding:0 24px 24px}}
- .box{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;flex:1;min-width:260px}}
- .box h3{{margin:0 0 8px;font-size:14px}} ul{{margin:0;padding-left:18px;font-size:13px;line-height:1.7}}
- table{{width:100%;border-collapse:collapse;font-size:13px}}
- th,td{{text-align:left;padding:6px 8px;border-bottom:1px solid #21262d}}
- th{{color:#8b949e;font-weight:600}}
+ .grid{{display:flex;flex-wrap:wrap;gap:18px;padding:0 28px 28px}}
+ .box{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:20px;flex:1;min-width:280px}}
+ .box h3{{margin:0 0 10px;font-size:17px}} ul{{margin:0;padding-left:20px;font-size:15px;line-height:1.9}}
+ table{{width:100%;border-collapse:collapse;font-size:15px}}
+ th,td{{text-align:left;padding:9px 10px;border-bottom:1px solid #21262d}}
+ th{{color:#8b949e;font-weight:600;font-size:14px}}
  .t{{color:#8b949e;white-space:nowrap}} .who{{font-weight:600}}
- .via{{color:#8b949e;font-size:12px;white-space:nowrap}}
- .verb{{background:#21262d;padding:1px 8px;border-radius:10px;font-size:12px;color:#c9d1d9}}
- .tgt{{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#58a6ff}}
- .ic{{text-align:center}}
- .msg{{color:#8b949e;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+ .via{{color:#8b949e;font-size:14px;white-space:nowrap}}
+ .verb{{background:#21262d;padding:2px 10px;border-radius:10px;font-size:14px;color:#c9d1d9}}
+ .tgt{{font-family:ui-monospace,Menlo,monospace;font-size:14px;color:#58a6ff}}
+ .ic{{text-align:center;font-size:16px}}
+ .msg{{color:#8b949e;max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
  tr.wk td{{background:#1c2128;font-weight:600;color:#e6edf3;padding:8px 8px;border-bottom:1px solid #30363d}}
  tr.wk .tw{{color:#8b949e;display:inline-block;width:14px}}
  tr.wk:hover td{{background:#22272e}}
