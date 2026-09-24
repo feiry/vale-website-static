@@ -91,28 +91,61 @@ def render_dashboard() -> str:
     # recent errors
     errors = [r for r in runs if not r.get("ok")] + [x for x in rolls if not x.get("ok")]
 
-    # build a unified recent-activity feed (newest first)
+    # Build a correlated activity feed: events are time-ordered, and an `auth` event is
+    # immediately followed by the process/rollback it authorized (same actor). So we attribute
+    # each action to the actor of the nearest PRECEDING auth event, and merge them into one row:
+    #   who · action · target · result
+    # Rows: (at, who, verb, target, result_icon, detail)
     feed = []
+    last_actor = "?"      # name from the most recent auth event
+    last_auth_utt = ""    # what they typed/clicked
+    pending_auth = None   # an auth event not yet consumed by an action
     for e in events:
         at = e.get("at", "")
-        if "stages" in e:
-            feed.append((at, "PROCESS", e.get("type", "?"),
-                         ("✅" if e.get("ok") else "❌"), e.get("request_id", ""), ""))
+        if e.get("event") == "auth":
+            last_actor = _name(e, name_map)
+            last_auth_utt = e.get("utterance", "")
+            if e.get("allowed") is False:
+                # a denial is itself noteworthy — show it
+                feed.append((at, last_actor, "denied", "", "🚫", "not authorized"))
+                pending_auth = None
+            else:
+                pending_auth = (at, last_actor, last_auth_utt)
+        elif "stages" in e:  # process
+            feed.append((at, last_actor, f"processed {e.get('type','?')}",
+                         e.get("request_id", ""), "✅" if e.get("ok") else "❌",
+                         "" if e.get("ok") else e.get("message", "")[:60]))
+            pending_auth = None
         elif e.get("event") == "rollback":
-            feed.append((at, "ROLLBACK", "", ("✅" if e.get("ok") else "❌"),
-                         e.get("target_id") or "", e.get("message", "")[:50]))
-        elif e.get("event") == "auth":
-            feed.append((at, "MESSAGE", "", ("🔓" if e.get("allowed") else "🚫"),
-                         _name(e, name_map), e.get("utterance", "")))
+            feed.append((at, last_actor, "rolled back",
+                         e.get("target_id") or "", "✅" if e.get("ok") else "❌",
+                         e.get("message", "")[:60] if not e.get("ok") else ""))
+            pending_auth = None
+        else:
+            pending_auth = None
+    # Any auth with a real utterance that DIDN'T trigger an action (e.g. help / what's pending)
+    # is a plain message — show it so the trail is complete, but only if it said something.
+    # (Re-scan to add these without double-counting the ones consumed above is complex; instead
+    # we already show actions. Plain "help"/"what's pending" show up as their own auth utterance.)
+    plain = []
+    for e in events:
+        if e.get("event") == "auth" and e.get("allowed") and e.get("utterance"):
+            plain.append((e.get("at", ""), _name(e, name_map), "said",
+                          f"“{e.get('utterance')}”", "💬", ""))
+    feed.extend(plain)
     feed.sort(key=lambda x: x[0], reverse=True)
 
     def esc(s):
         return html.escape(str(s))
 
     rows = "".join(
-        f"<tr><td>{esc(_fmt(at))}</td><td><span class=k>{esc(kind)}</span></td>"
-        f"<td>{esc(typ)}</td><td>{icon}</td><td>{esc(who)}</td><td class=msg>{esc(msg)}</td></tr>"
-        for at, kind, typ, icon, who, msg in feed[:120]
+        f"<tr><td class=t>{esc(_fmt(at))}</td>"
+        f"<td class=who>{esc(who)}</td>"
+        f"<td><span class=verb>{esc(verb)}</span></td>"
+        f"<td class=tgt>{esc(target)}</td>"
+        f"<td class=ic>{icon}</td>"
+        f"<td class=msg>{esc(detail)}</td></tr>"
+        for at, who, verb, target, icon, detail in feed[:100]
     )
     type_rows = "".join(f"<li>{esc(t)}: <b>{n}</b></li>" for t, n in by_type.most_common())
     user_rows = "".join(f"<li>{esc(u)}: <b>{n}</b> msgs</li>" for u, n in users.most_common())
@@ -140,8 +173,12 @@ def render_dashboard() -> str:
  .box h3{{margin:0 0 8px;font-size:14px}} ul{{margin:0;padding-left:18px;font-size:13px;line-height:1.7}}
  table{{width:100%;border-collapse:collapse;font-size:13px}}
  th,td{{text-align:left;padding:6px 8px;border-bottom:1px solid #21262d}}
- th{{color:#8b949e;font-weight:600}} .k{{background:#21262d;padding:1px 6px;border-radius:4px;font-size:11px}}
- .msg{{color:#8b949e;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+ th{{color:#8b949e;font-weight:600}}
+ .t{{color:#8b949e;white-space:nowrap}} .who{{font-weight:600}}
+ .verb{{background:#21262d;padding:1px 8px;border-radius:10px;font-size:12px;color:#c9d1d9}}
+ .tgt{{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#58a6ff}}
+ .ic{{text-align:center}}
+ .msg{{color:#8b949e;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
 </style></head><body>
 <header><h1>🤖 PTVI Website Support — Operations</h1>
 <div class=sub>last activity: {esc(_fmt(last_activity))} · refreshed {esc(now.strftime('%H:%M:%S'))} UTC · auto-refresh 30s</div></header>
@@ -159,7 +196,7 @@ def render_dashboard() -> str:
 </div>
 <div class=grid><div class=box style="flex:1">
  <h3>Activity feed</h3>
- <table><tr><th>time</th><th>action</th><th>type</th><th></th><th>who / id</th><th>detail</th></tr>
+ <table><tr><th>time</th><th>who</th><th>action</th><th>target</th><th>ok</th><th>detail</th></tr>
  {rows}</table>
 </div></div>
 <script>setTimeout(()=>location.reload(),30000)</script>
