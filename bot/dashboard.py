@@ -172,7 +172,7 @@ def render_dashboard() -> str:
  .card{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:20px;min-width:170px}}
  .card .n{{font-size:40px;font-weight:700}} .card .l{{color:#8b949e;font-size:15px;text-transform:uppercase}}
  .ok{{color:#3fb950}} .bad{{color:#f85149}}
- .grid{{display:flex;flex-wrap:wrap;gap:18px;padding:0 28px 28px;align-items:flex-start}}
+ .grid{{display:flex;flex-wrap:wrap;gap:18px;padding:0 28px 28px;align-items:stretch}}
  .box{{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:20px}}
  .box.narrow{{flex:1;min-width:240px}} .box.wide{{flex:2;min-width:340px}} .box.full{{flex:1 1 100%}}
  .box h3{{margin:0 0 12px;font-size:18px}} ul{{margin:0;padding-left:20px;font-size:16px;line-height:2}}
