@@ -174,6 +174,9 @@ def render_dashboard() -> str:
  .tgt{{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:#58a6ff}}
  .ic{{text-align:center}}
  .msg{{color:#8b949e;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+ tr.wk td{{background:#1c2128;font-weight:600;color:#e6edf3;padding:8px 8px;border-bottom:1px solid #30363d}}
+ tr.wk .tw{{color:#8b949e;display:inline-block;width:14px}}
+ tr.wk:hover td{{background:#22272e}}
 </style></head><body>
 <header><h1>🤖 PTVI Website Support — Operations</h1>
 <div class=sub>last activity: {esc(_fmt(last_activity))} · refreshed {esc(now.strftime('%H:%M:%S'))} UTC · auto-refresh 30s</div></header>
@@ -195,16 +198,52 @@ def render_dashboard() -> str:
  {rows}</table>
 </div></div>
 <script>
-// Convert server-side UTC timestamps to the VIEWER'S local timezone (their computer).
 (function(){{
-  const opts={{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}};
-  document.querySelectorAll('td.t[data-utc]').forEach(el=>{{
-    const iso=el.getAttribute('data-utc'); if(!iso) return;
-    const d=new Date(iso); if(isNaN(d)) return;
-    el.textContent=new Intl.DateTimeFormat(undefined,opts).format(d);
-  }});
+  // All in the VIEWER'S local timezone (their computer).
+  const timeOpts={{hour:'2-digit',minute:'2-digit',hour12:false}};
+  const dayOpts={{month:'short',day:'numeric'}};   // "Sep 30"
   const tz=Intl.DateTimeFormat().resolvedOptions().timeZone||'local';
   const sub=document.querySelector('.sub'); if(sub) sub.textContent+=' · times shown in '+tz;
+
+  // Monday-start week key + friendly label for a date (in local time)
+  function weekStart(d){{ const x=new Date(d); const day=(x.getDay()+6)%7; x.setHours(0,0,0,0); x.setDate(x.getDate()-day); return x; }}
+  const nowWk=weekStart(new Date()).getTime();
+  function weekLabel(ws){{
+    const t=ws.getTime();
+    if(t===nowWk) return 'This week';
+    if(t===nowWk-7*864e5) return 'Last week';
+    const end=new Date(ws); end.setDate(end.getDate()+6);
+    return 'Week of '+new Intl.DateTimeFormat(undefined,dayOpts).format(ws)+' – '+new Intl.DateTimeFormat(undefined,dayOpts).format(end);
+  }}
+
+  const tbody=document.querySelector('table');
+  const rows=[...tbody.querySelectorAll('tr')].slice(1);  // skip header
+  let curKey=null, group=0;
+  rows.forEach(tr=>{{
+    const el=tr.querySelector('td.t[data-utc]'); if(!el) return;
+    const iso=el.getAttribute('data-utc'); const d=new Date(iso); if(isNaN(d)) return;
+    // human-readable time cell: "Sep 30, 16:03"
+    el.textContent=new Intl.DateTimeFormat(undefined,dayOpts).format(d)+', '+new Intl.DateTimeFormat(undefined,timeOpts).format(d);
+    // week header when the week changes
+    const ws=weekStart(d); const key=ws.getTime();
+    if(key!==curKey){{
+      curKey=key; group++;
+      const collapsed=(key!==nowWk);   // only current week open by default
+      const hdr=document.createElement('tr');
+      hdr.className='wk';
+      hdr.innerHTML='<td colspan=7><span class=tw>'+(collapsed?'▸':'▾')+'</span> '+weekLabel(ws)+'</td>';
+      hdr.dataset.group='g'+group; hdr.dataset.open=collapsed?'0':'1';
+      hdr.style.cursor='pointer';
+      hdr.onclick=()=>{{
+        const open=hdr.dataset.open==='1'; hdr.dataset.open=open?'0':'1';
+        hdr.querySelector('.tw').textContent=open?'▸':'▾';
+        document.querySelectorAll('tr[data-belong="g'+group+'"]').forEach(r=>r.style.display=open?'none':'');
+      }};
+      tr.parentNode.insertBefore(hdr,tr);
+    }}
+    tr.dataset.belong='g'+group;
+    if(curKey!==nowWk) tr.style.display='none';   // collapse older weeks initially
+  }});
 }})();
 setTimeout(()=>location.reload(),30000);
 </script>
