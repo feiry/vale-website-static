@@ -205,6 +205,18 @@ def render_dashboard() -> str:
   const tz=Intl.DateTimeFormat().resolvedOptions().timeZone||'local';
   const sub=document.querySelector('.sub'); if(sub) sub.textContent+=' · times shown in '+tz;
 
+  // Gmail-style relative label for a row's timestamp (in local time).
+  function midnight(d){{ const x=new Date(d); x.setHours(0,0,0,0); return x; }}
+  const today0=midnight(new Date()).getTime();
+  function relLabel(d){{
+    const t=new Intl.DateTimeFormat(undefined,timeOpts).format(d);
+    const days=Math.round((today0-midnight(d).getTime())/864e5);
+    if(days<=0) return 'Today '+t;
+    if(days===1) return 'Yesterday '+t;
+    if(days<7) return days+' days ago '+t;
+    return new Intl.DateTimeFormat(undefined,dayOpts).format(d)+', '+t;  // "Sep 15, 14:20"
+  }}
+
   // Monday-start week key + friendly label for a date (in local time)
   function weekStart(d){{ const x=new Date(d); const day=(x.getDay()+6)%7; x.setHours(0,0,0,0); x.setDate(x.getDate()-day); return x; }}
   const nowWk=weekStart(new Date()).getTime();
@@ -222,8 +234,8 @@ def render_dashboard() -> str:
   rows.forEach(tr=>{{
     const el=tr.querySelector('td.t[data-utc]'); if(!el) return;
     const iso=el.getAttribute('data-utc'); const d=new Date(iso); if(isNaN(d)) return;
-    // human-readable time cell: "Sep 30, 16:03"
-    el.textContent=new Intl.DateTimeFormat(undefined,dayOpts).format(d)+', '+new Intl.DateTimeFormat(undefined,timeOpts).format(d);
+    // Gmail-style relative time cell: "Today 16:03" / "Yesterday 09:12" / "3 days ago …" / "Sep 15, 14:20"
+    el.textContent=relLabel(d);
     // week header when the week changes
     const ws=weekStart(d); const key=ws.getTime();
     if(key!==curKey){{
