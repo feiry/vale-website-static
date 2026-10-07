@@ -75,6 +75,18 @@ EDITOR_JS_TEMPLATE = r"""
 }
 /* Editable elements themselves must always be visible so COMMs can edit them. */
 [data-gdi-edit]{ opacity:1 !important; visibility:visible !important; }
+/* Accordions ("Journalist Writing & Photo Competition", "Writing Competition",
+   "Photo Competition", etc.) collapse their body via the page's JS, which we strip for
+   editing. The page hides them with TWO rules, both scoped under .vale-fragmento-expansivel
+   .accordion (so we must match that specificity to win):
+     .accordion-content            { opacity:0; max-height:0 }
+     .accordion-content > .conteudo-montado { display:none }   (inner wrapper also hidden)
+   Force every panel fully OPEN so COMMs can see + edit inside them. */
+.vale-fragmento-expansivel .accordion .accordion-content{
+  opacity:1 !important; max-height:none !important; height:auto !important;
+  overflow:visible !important; padding-top:.5rem !important; padding-bottom:.5rem !important; }
+.vale-fragmento-expansivel .accordion .accordion-content > .conteudo-montado{
+  display:block !important; }
 #gdi-bar{position:fixed;top:0;left:0;right:0;z-index:2147483647;background:#00533f;color:#fff;
   font-family:Calibri,Arial,sans-serif;padding:10px 16px;display:flex;align-items:center;gap:14px;
   box-shadow:0 2px 8px rgba(0,0,0,.3)}
@@ -88,6 +100,11 @@ body{padding-top:52px !important}
 [data-gdi-edit]:hover{outline:2px dashed #007a5e;outline-offset:2px}
 [data-gdi-edit].gdi-img{cursor:pointer}
 [data-gdi-changed]{outline:2px solid #F2A900 !important;outline-offset:2px}
+.gdi-link-badge-wrap{position:relative;display:inline;z-index:2147483646}
+.gdi-link-badge{position:absolute;top:-10px;left:-6px;z-index:2147483646;background:#00533f;
+  color:#fff;border:1px solid #F2A900;border-radius:4px;font-family:Calibri,Arial,sans-serif;
+  font-size:11px;line-height:1;padding:3px 6px;cursor:pointer;white-space:nowrap;opacity:.95}
+.gdi-link-badge:hover{background:#F2A900;color:#111}
 #gdi-note{position:fixed;bottom:14px;left:14px;z-index:2147483647;background:#111;color:#fff;
   font-family:Calibri;font-size:13px;padding:8px 12px;border-radius:6px;opacity:.9;max-width:360px}
 </style>
@@ -99,6 +116,7 @@ body{padding-top:52px !important}
   <button onclick="gdiSave()">Save changes ⤓</button>
 </div>
 <div id="gdi-note">Click any highlighted text to edit it. Click a highlighted image to replace it.
+Click a <b>🔗 link</b> badge to change where a link goes.
 When done, click <b>Save changes</b> and send the downloaded file back to GDI.<br>
 <span style="opacity:.75">Tip: if the file picker is stuck on “Loading…”, click a different folder
 (e.g. Downloads) in its sidebar, or cancel and click the image again — that’s a macOS
@@ -118,7 +136,22 @@ function gdiInit(){
     if(type==='image'){
       el.classList.add('gdi-img');
       gdiOrig[i] = el.getAttribute('src')||'';
-      el.addEventListener('click', ()=>gdiPickImage(el,i));
+      // Some editable images are wrapped in an <a> (e.g. a poster that links out).
+      // Without preventDefault the click navigates the link and the file picker never
+      // opens — so the image can't be replaced. Stop the anchor from hijacking the click.
+      el.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); gdiPickImage(el,i); });
+    }else if(type==='link'){
+      // A link has TWO editable parts: its visible text and its URL (href). Buttons
+      // ("Register here") usually need the text; an image-poster link has no text and
+      // needs the URL. Support both: the text stays inline-editable, and clicking the
+      // small "🔗 link" badge edits the URL via a prompt. preventDefault stops the
+      // anchor from navigating (which would otherwise block editing entirely).
+      el.classList.add('gdi-link');
+      gdiOrig[i] = { html: el.innerHTML, href: el.getAttribute('href')||'' };
+      el.setAttribute('contenteditable','true');
+      el.addEventListener('click', (ev)=>{ ev.preventDefault(); });   // don't follow the link in-editor
+      el.addEventListener('input', ()=>{ el.setAttribute('data-gdi-changed','1'); gdiCount(); });
+      gdiAddLinkBadge(el,i);
     }else{
       el.setAttribute('contenteditable','true');
       gdiOrig[i] = el.innerHTML;
@@ -143,6 +176,24 @@ function gdiPickImage(el,i){
   };
   inp.click();
 }
+// A small floating "🔗 link" badge anchored to a link element, so COMMs can edit the
+// URL even when the link has no visible text (e.g. an image poster).
+function gdiAddLinkBadge(el,i){
+  const b=document.createElement('button');
+  b.type='button'; b.className='gdi-link-badge'; b.textContent='🔗 link';
+  b.title='Edit where this link goes';
+  b.addEventListener('click', (ev)=>{ ev.preventDefault(); ev.stopPropagation(); gdiEditLink(el,i); });
+  // position the badge at the top-left of the link box
+  const wrap=document.createElement('span'); wrap.className='gdi-link-badge-wrap';
+  el.parentNode.insertBefore(wrap, el); wrap.appendChild(b);
+}
+function gdiEditLink(el,i){
+  const cur=el.getAttribute('href')||'';
+  const next=prompt('Edit the link URL (where this goes when clicked):', cur);
+  if(next===null) return;              // cancelled
+  el.setAttribute('href', next.trim());
+  el.setAttribute('data-gdi-changed','1'); gdiCount();
+}
 function gdiCount(){
   const n=document.querySelectorAll('[data-gdi-changed]').length;
   document.getElementById('gdi-count').textContent = n? (n+' change'+(n>1?'s':'')) : '';
@@ -150,7 +201,9 @@ function gdiCount(){
 function gdiReset(){
   gdiEls().forEach(el=>{
     const i=+el.getAttribute('data-gdi-index');
-    if(el.getAttribute('data-gdi-type')==='image'){ el.src=gdiOrig[i]; delete gdiImgFiles[i]; }
+    const type=el.getAttribute('data-gdi-type');
+    if(type==='image'){ el.src=gdiOrig[i]; delete gdiImgFiles[i]; }
+    else if(type==='link'){ el.innerHTML=gdiOrig[i].html; el.setAttribute('href', gdiOrig[i].href); }
     else el.innerHTML=gdiOrig[i];
     el.removeAttribute('data-gdi-changed');
   });
@@ -163,6 +216,13 @@ function gdiSave(){
     const type=el.getAttribute('data-gdi-type');
     if(type==='image'){
       if(el.hasAttribute('data-gdi-changed') && gdiImgFiles[i]) out.values[i]={type:'image', new:gdiImgFiles[i]};
+    }else if(type==='link'){
+      if(el.hasAttribute('data-gdi-changed')){
+        const v={type:'link'};
+        if(el.innerHTML !== gdiOrig[i].html)            v.inner = el.innerHTML;
+        if((el.getAttribute('href')||'') !== gdiOrig[i].href) v.href = el.getAttribute('href')||'';
+        out.values[i]=v;
+      }
     }else{
       if(el.hasAttribute('data-gdi-changed')) out.values[i]={type:type, inner:el.innerHTML};
     }
@@ -215,6 +275,10 @@ def build_editor(path, lang):
 
     html = _strip_scripts(html)
     html = _rewrite_assets(html)
+    # Accordion toggle buttons start as aria-expanded="false" (the page's JS flips them on
+    # click). With the JS stripped, flip them to "true" so the chevron shows the open state
+    # that our force-open CSS renders — otherwise the arrow looks "closed" over open content.
+    html = re.sub(r'(<button\b[^>]*?)aria-expanded="false"', r'\1aria-expanded="true"', html)
 
     meta = {
         "page": os.path.basename(path),

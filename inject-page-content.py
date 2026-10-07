@@ -116,6 +116,12 @@ def parse_editor_json(text):
                 d["new"] = v["new"]
             if "alt" in v:
                 d["alt"] = v["alt"]
+        elif v.get("type") == "link":
+            # a link edit may carry new visible text (inner), a new URL (href), or both
+            if "inner" in v:
+                d["inner"] = v["inner"]
+            if "href" in v:
+                d["href"] = v["href"]
         else:
             if "inner" in v:
                 d["inner"] = v["inner"]
@@ -170,8 +176,11 @@ def inject(content_path, source_path, out_path, image_folder=None, is_json=False
             if e["alt"] is not None and "alt" in v:
                 edits.append((e["alt"][0], e["alt"][1], v["alt"]))
         elif etype == "link":
-            if "text" in v and e["inner"]:
-                edits.append((e["inner"][0], e["inner"][1], v["text"]))
+            # inner text may arrive as `text` (markdown content file) or `inner`
+            # (visual-editor JSON); accept either.
+            link_inner = v.get("text", v.get("inner"))
+            if link_inner is not None and e["inner"]:
+                edits.append((e["inner"][0], e["inner"][1], link_inner))
             if "href" in v and e["href"]:
                 edits.append((e["href"][0], e["href"][1], v["href"]))
         else:  # text / rich-text / html
