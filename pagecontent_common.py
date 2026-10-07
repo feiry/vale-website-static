@@ -30,6 +30,11 @@ _EDITABLE_RE = re.compile(
 )
 _ATTR_RE = lambda name: re.compile(r'\s' + name + r'="(?P<val>[^"]*)"')
 
+# An <a ...> opening tag — used to auto-detect a link that WRAPS an editable image
+# (e.g. a poster that links out). Such anchors are rarely marked editable in Liferay,
+# but COMMs needs to edit where the poster points, so we expose their href automatically.
+_ANCHOR_OPEN_RE = re.compile(r'<a\b(?P<attrs>[^>]*)>', re.IGNORECASE)
+
 
 class PageStructureError(Exception):
     """The page doesn't have the expected single main-content region."""
@@ -109,6 +114,15 @@ def scan_editables(html):
         desc["hint"] = idm.group("val") if idm else ""
 
         if etype == "image" or tag in _VOID:
+            # Auto-expose the URL of an <a> that WRAPS this image (poster-style link),
+            # unless that anchor is already a marked-editable link (then the regex above
+            # emits it separately and we must not double-count). Emit the synthetic link
+            # descriptor BEFORE the image so document order (and thus index numbering)
+            # stays identical between the editor and the injector.
+            if etype == "image":
+                link_desc = _wrapping_anchor_link(html, m.start(), out, cstart)
+                if link_desc is not None:
+                    out.append(link_desc)
             for name in ("src", "alt", "href"):
                 am = _ATTR_RE(name).search(attrs)
                 if am:
@@ -123,6 +137,43 @@ def scan_editables(html):
                     desc["href"] = (attrs_off + am.start("val"), attrs_off + am.end("val"))
         out.append(desc)
     return out
+
+
+def _wrapping_anchor_link(html, img_tag_start, already, cstart):
+    """If the editable <img> whose tag starts at `img_tag_start` is directly wrapped by an
+    <a ...> (only inert wrappers like <picture> in between, no intervening </a>), return a
+    synthetic `link` descriptor for that anchor's href span. Else return None.
+
+    Guards:
+      - skips if the anchor has data-lfr-editable-type (already emitted by the main scan),
+      - skips if the anchor has no href,
+      - skips if we already emitted a link for this same anchor (shared image twins).
+    """
+    # nearest <a ...> opening tag before the image
+    am = None
+    for am in _ANCHOR_OPEN_RE.finditer(html, cstart, img_tag_start):
+        pass  # keep the last (closest) one
+    if am is None:
+        return None
+    gap = html[am.end():img_tag_start]
+    # the anchor must still be OPEN at the image: no </a> and no other <a> between them
+    if "</a>" in gap or "<a" in gap:
+        return None
+    attrs = am.group("attrs")
+    if "data-lfr-editable-type" in attrs:
+        return None  # already a marked editable link; don't duplicate
+    hm = _ATTR_RE("href").search(attrs)
+    if not hm:
+        return None
+    attrs_off = am.start("attrs")
+    href_span = (attrs_off + hm.start("val"), attrs_off + hm.end("val"))
+    # de-dupe: an identical href span already emitted (shouldn't happen, but be safe)
+    for d in already:
+        if d.get("href") == href_span:
+            return None
+    idm = _ATTR_RE("data-lfr-editable-id").search(attrs)
+    return {"type": "link", "tag": "a", "inner": None, "src": None, "alt": None,
+            "href": href_span, "hint": (idm.group("val") if idm else "image-link")}
 
 
 def type_sequence(editables):

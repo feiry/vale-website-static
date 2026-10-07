@@ -259,6 +259,9 @@ def build_editor(path, lang):
         # after '>', so search backwards for the last '<tag' before it. For image use src.
         if e["type"] == "image":
             anchor = e["src"][0] if e["src"] else None
+        elif e["type"] == "link" and not e["inner"]:
+            # a synthetic image-wrapping link: no editable text, tag the <a> via its href
+            anchor = e["href"][0] if e["href"] else None
         else:
             anchor = e["inner"][0] if e["inner"] else None
         if anchor is None:
